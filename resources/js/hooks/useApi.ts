@@ -52,6 +52,54 @@ export function useDeleteCourse() {
   });
 }
 
+export function useAssignTeacher() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ courseId, teacherId }: { courseId: number; teacherId: number }) =>
+      coursesApi.assignTeacher(courseId, teacherId),
+    onSuccess: (_data, { courseId }) => {
+      qc.invalidateQueries({ queryKey: ["courses", courseId] });
+      qc.invalidateQueries({ queryKey: ["courses"] });
+    },
+  });
+}
+
+export function useRemoveTeacher() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ courseId, teacherId }: { courseId: number; teacherId: number }) =>
+      coursesApi.removeTeacher(courseId, teacherId),
+    onSuccess: (_data, { courseId }) => {
+      qc.invalidateQueries({ queryKey: ["courses", courseId] });
+      qc.invalidateQueries({ queryKey: ["courses"] });
+    },
+  });
+}
+
+export function useAssignStudent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ courseId, studentId }: { courseId: number; studentId: number }) =>
+      coursesApi.assignStudent(courseId, studentId),
+    onSuccess: (_data, { courseId }) => {
+      qc.invalidateQueries({ queryKey: ["courses", courseId] });
+      qc.invalidateQueries({ queryKey: ["courses"] });
+    },
+  });
+}
+
+export function useRemoveStudent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ courseId, studentId }: { courseId: number; studentId: number }) =>
+      coursesApi.removeStudent(courseId, studentId),
+    onSuccess: (_data, { courseId }) => {
+      qc.invalidateQueries({ queryKey: ["courses", courseId] });
+      qc.invalidateQueries({ queryKey: ["courses"] });
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Teachers
 // ---------------------------------------------------------------------------
