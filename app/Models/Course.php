@@ -9,11 +9,16 @@ class Course extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title', 'color', 'description', 'year', 'schedule_details'];
+    protected $fillable = ['title', 'color', 'description', 'year', 'year_id', 'schedule_details'];
 
     protected $casts = [
         'schedule_details' => 'array',
     ];
+
+    public function academicYear()
+    {
+        return $this->belongsTo(Year::class, 'year_id');
+    }
 
     public function teachers()
     {

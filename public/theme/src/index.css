@@ -117,7 +117,12 @@
     @apply bg-background text-foreground font-cairo antialiased;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-cairo font-bold;
   }
 }
@@ -131,18 +136,22 @@
     background-color: hsl(var(--course-teal));
     color: hsl(var(--course-teal-fg));
   }
+
   .course-tag-blue {
     background-color: hsl(var(--course-blue));
     color: hsl(var(--course-blue-fg));
   }
+
   .course-tag-amber {
     background-color: hsl(var(--course-amber));
     color: hsl(var(--course-amber-fg));
   }
+
   .course-tag-rose {
     background-color: hsl(var(--course-rose));
     color: hsl(var(--course-rose-fg));
   }
+
   .course-tag-violet {
     background-color: hsl(var(--course-violet));
     color: hsl(var(--course-violet-fg));
@@ -151,9 +160,11 @@
   .status-present {
     color: hsl(var(--success));
   }
+
   .status-absent {
     color: hsl(var(--destructive));
   }
+
   .status-unmarked {
     color: hsl(var(--warning));
   }
@@ -163,7 +174,7 @@
   }
 
   .page-header {
-    @apply mb-6;
+    @apply mb-2;
   }
 
   .page-title {

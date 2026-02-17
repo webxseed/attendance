@@ -174,7 +174,7 @@
   }
 
   .page-header {
-    @apply mb-6 mt-24;
+    @apply mb-6 mt-16;
   }
 
   .page-title {

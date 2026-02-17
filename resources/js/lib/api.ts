@@ -58,12 +58,22 @@ export interface Teacher {
   courses?: Course[];
 }
 
+export interface Year {
+  id: number;
+  name: string;
+  title: string | null;
+  start_year: string | null;
+  end_year: string | null;
+}
+
 export interface Course {
   id: number;
   title: string;
   color: string | null;
   description: string | null;
   year?: number | null;
+  year_id?: number | null;
+  academic_year?: Year | null;
   schedule_details?: { day: string; from_time: string; to_time: string; note: string }[] | null;
   students_count?: number;
   teachers_count?: number;
@@ -184,6 +194,16 @@ export const authApi = {
 };
 
 // ---------------------------------------------------------------------------
+// Years API
+// ---------------------------------------------------------------------------
+
+export const yearsApi = {
+  list: () => api.get<Year[]>("/years"),
+  create: (data: { title: string; start_year: string; end_year: string }) =>
+    api.post<Year>("/years", data),
+};
+
+// ---------------------------------------------------------------------------
 // Courses API
 // ---------------------------------------------------------------------------
 
@@ -197,6 +217,7 @@ export const coursesApi = {
     color?: string;
     description?: string;
     year?: number;
+    year_id?: number;
     schedule_details?: any[];
   }) => api.post<Course>("/courses", data),
 
@@ -207,6 +228,7 @@ export const coursesApi = {
       color?: string;
       description?: string;
       year?: number;
+      year_id?: number;
       schedule_details?: any[];
     }
   ) => api.put<Course>(`/courses/${id}`, data),

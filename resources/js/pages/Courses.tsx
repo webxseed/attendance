@@ -14,6 +14,8 @@ import {
   useRemoveStudent,
   useCreateStudent,
   useDeleteCourse,
+  useYears,
+  useCreateYear,
 } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -90,13 +92,19 @@ export default function Courses() {
   const [color, setColor] = useState("teal");
   const [description, setDescription] = useState("");
   const [year, setYear] = useState<string>("");
+  const [yearId, setYearId] = useState<string>("");
+  const [newYearTitle, setNewYearTitle] = useState("");
+  const [newYearStart, setNewYearStart] = useState("");
+  const [newYearEnd, setNewYearEnd] = useState("");
   const [scheduleDetails, setScheduleDetails] = useState<
     { day: string; from_time: string; to_time: string; note: string }[]
   >([]);
 
   // API – list
   const { data: coursesPage, isLoading } = useCourses();
+  const { data: years } = useYears();
   const createMutation = useCreateCourse();
+  const createYearMutation = useCreateYear();
   const courses = coursesPage?.data ?? [];
 
   const filtered = search
@@ -108,7 +116,30 @@ export default function Courses() {
     setColor("teal");
     setDescription("");
     setYear("");
+    setYearId("");
     setScheduleDetails([]);
+  };
+
+  const handleCreateYear = async () => {
+    if (!newYearTitle.trim() || !newYearStart.trim() || !newYearEnd.trim()) return;
+    try {
+      const newYear = await createYearMutation.mutateAsync({
+        title: newYearTitle,
+        start_year: newYearStart,
+        end_year: newYearEnd
+      });
+      setNewYearTitle("");
+      setNewYearStart("");
+      setNewYearEnd("");
+      setYearId(newYear.id.toString());
+      toast({ title: "تم", description: "تمت إضافة السنة بنجاح" });
+    } catch (e: any) {
+      toast({
+        title: "خطأ",
+        description: e.response?.data?.message || "فشل إضافة السنة",
+        variant: "destructive",
+      });
+    }
   };
 
   const addScheduleItem = () => {
@@ -133,6 +164,7 @@ export default function Courses() {
         color,
         description: description.trim() || undefined,
         year: year ? parseInt(year) : undefined,
+        year_id: yearId ? parseInt(yearId) : undefined,
         schedule_details: scheduleDetails.length > 0 ? scheduleDetails : undefined,
       },
       {
@@ -216,7 +248,74 @@ export default function Courses() {
               </div>
 
               <div className="space-y-2">
-                <Label>السنة الدراسية</Label>
+                <Label>السنة الدراسية (الفوج)</Label>
+                <div className="flex gap-2">
+                  <Select value={yearId} onValueChange={setYearId}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="اختر السنة" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {years?.map((y) => (
+                        <SelectItem key={y.id} value={y.id.toString()}>
+                          {y.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="icon">
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-3">
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-xs leading-none">إضافة سنة جديدة</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            placeholder="اللقب (مثال: فوج)"
+                            value={newYearTitle}
+                            onChange={(e) => setNewYearTitle(e.target.value)}
+                            className="h-8 text-xs col-span-2"
+                          />
+                          <Input
+                            placeholder="2025"
+                            value={newYearStart}
+                            onChange={(e) => setNewYearStart(e.target.value)}
+                            className="h-8 text-xs"
+                            type="number"
+                            maxLength={4}
+                          />
+                          <Input
+                            placeholder="2026"
+                            value={newYearEnd}
+                            onChange={(e) => setNewYearEnd(e.target.value)}
+                            className="h-8 text-xs"
+                            type="number"
+                            maxLength={4}
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          className="w-full h-8 text-xs"
+                          onClick={() => handleCreateYear()}
+                          disabled={createYearMutation.isPending}
+                        >
+                          {createYearMutation.isPending ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            "إضافة"
+                          )}
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>السنة (رقم - اختياري)</Label>
                 <Input
                   type="number"
                   placeholder="2026"
@@ -373,6 +472,11 @@ export default function Courses() {
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-sm">{course.title}</p>
+                      {course.academic_year && (
+                        <Badge variant="secondary" className="text-[10px] h-4 px-1">
+                          {course.academic_year.name}
+                        </Badge>
+                      )}
                       {course.year && (
                         <Badge variant="outline" className="text-[10px] h-4 px-1">
                           {course.year}
@@ -461,6 +565,7 @@ function CourseManageSheet({
   const [color, setColor] = useState("");
   const [description, setDescription] = useState("");
   const [year, setYear] = useState("");
+  const [yearId, setYearId] = useState("");
   const [scheduleDetails, setScheduleDetails] = useState<
     { day: string; from_time: string; to_time: string; note: string }[]
   >([]);
@@ -472,6 +577,7 @@ function CourseManageSheet({
       setColor(course.color || "teal");
       setDescription(course.description || "");
       setYear(course.year?.toString() || "");
+      setYearId(course.year_id?.toString() || "");
       setScheduleDetails(
         (course.schedule_details || []).map((d: any) => ({
           day: d.day,
@@ -491,6 +597,34 @@ function CourseManageSheet({
   const [studentComboOpen, setStudentComboOpen] = useState(false);
   const [createStudentDialogOpen, setCreateStudentDialogOpen] = useState(false);
   const createStudentMutation = useCreateStudent();
+  const createYearMutation = useCreateYear();
+  const { data: years } = useYears();
+
+  const [newYearTitle, setNewYearTitle] = useState("");
+  const [newYearStart, setNewYearStart] = useState("");
+  const [newYearEnd, setNewYearEnd] = useState("");
+
+  const handleCreateYear = async () => {
+    if (!newYearTitle.trim() || !newYearStart.trim() || !newYearEnd.trim()) return;
+    try {
+      const newYear = await createYearMutation.mutateAsync({
+        title: newYearTitle,
+        start_year: newYearStart,
+        end_year: newYearEnd
+      });
+      setNewYearTitle("");
+      setNewYearStart("");
+      setNewYearEnd("");
+      setYearId(newYear.id.toString());
+      toast({ title: "تم", description: "تمت إضافة السنة بنجاح" });
+    } catch (e: any) {
+      toast({
+        title: "خطأ",
+        description: e.response?.data?.message || "فشل إضافة السنة",
+        variant: "destructive",
+      });
+    }
+  };
 
   const [newStudentData, setNewStudentData] = useState({
     full_name: "",
@@ -560,6 +694,7 @@ function CourseManageSheet({
           color,
           description,
           year: year ? parseInt(year) : undefined,
+          year_id: yearId ? parseInt(yearId) : undefined,
           schedule_details: scheduleDetails,
         },
       },
@@ -783,8 +918,76 @@ function CourseManageSheet({
                     onChange={(e) => setDescription(e.target.value)}
                   />
                 </div>
+
                 <div className="space-y-2">
-                  <Label>السنة الدراسية</Label>
+                  <Label>السنة الدراسية (الفوج)</Label>
+                  <div className="flex gap-2">
+                    <Select value={yearId} onValueChange={setYearId}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="اختر السنة" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {years?.map((y) => (
+                          <SelectItem key={y.id} value={y.id.toString()}>
+                            {y.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="icon">
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-3">
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-xs leading-none">إضافة سنة جديدة</h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input
+                              placeholder="اللقب (مثال: فوج)"
+                              value={newYearTitle}
+                              onChange={(e) => setNewYearTitle(e.target.value)}
+                              className="h-8 text-xs col-span-2"
+                            />
+                            <Input
+                              placeholder="2025"
+                              value={newYearStart}
+                              onChange={(e) => setNewYearStart(e.target.value)}
+                              className="h-8 text-xs"
+                              type="number"
+                              maxLength={4}
+                            />
+                            <Input
+                              placeholder="2026"
+                              value={newYearEnd}
+                              onChange={(e) => setNewYearEnd(e.target.value)}
+                              className="h-8 text-xs"
+                              type="number"
+                              maxLength={4}
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            className="w-full h-8 text-xs"
+                            onClick={() => handleCreateYear()}
+                            disabled={createYearMutation.isPending}
+                          >
+                            {createYearMutation.isPending ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              "إضافة"
+                            )}
+                          </Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>السنة (رقم - اختياري)</Label>
                   <Input
                     type="number"
                     value={year}

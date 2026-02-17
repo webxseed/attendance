@@ -11,12 +11,33 @@ import {
   usersApi,
   attendanceApi,
   reportsApi,
+  yearsApi,
   Course,
   CourseStats,
   DailyOverviewItem,
   User,
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+
+// ---------------------------------------------------------------------------
+// Years
+// ---------------------------------------------------------------------------
+
+export function useYears() {
+  return useQuery({
+    queryKey: ["years"],
+    queryFn: () => yearsApi.list().then((r) => r.data),
+  });
+}
+
+export function useCreateYear() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { title: string; start_year: string; end_year: string }) =>
+      yearsApi.create(data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["years"] }),
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Courses
@@ -45,6 +66,7 @@ export function useCreateCourse() {
       color?: string;
       description?: string;
       year?: number;
+      year_id?: number;
       schedule_details?: any[];
     }) => coursesApi.create(data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["courses"] }),
@@ -64,6 +86,7 @@ export function useUpdateCourse() {
         color?: string;
         description?: string;
         year?: number;
+        year_id?: number;
         schedule_details?: any[];
       };
     }) => coursesApi.update(id, data).then((r) => r.data),

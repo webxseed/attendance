@@ -21,7 +21,7 @@ class CourseController extends Controller
         $user = $request->user();
 
         if ($user->isAdmin()) {
-            return Course::withCount(['students', 'teachers'])->paginate(20);
+            return Course::with('academicYear')->withCount(['students', 'teachers'])->paginate(20);
         }
 
         if ($user->isTeacher()) {
@@ -29,7 +29,7 @@ class CourseController extends Controller
             if (!$user->teacher) {
                 return response()->json(['message' => 'Teacher profile not found.'], 403);
             }
-            return $user->teacher->courses()->withCount(['students'])->paginate(20);
+            return $user->teacher->courses()->with('academicYear')->withCount(['students'])->paginate(20);
         }
 
         return response()->json(['message' => 'Unauthorized'], 403);
@@ -49,12 +49,13 @@ class CourseController extends Controller
             'color' => 'nullable|string|max:7',
             'description' => 'nullable|string',
             'year' => 'nullable|integer',
+            'year_id' => 'nullable|exists:years,id',
             'schedule_details' => 'nullable|array',
         ]);
 
         $course = Course::create($validated);
 
-        return response()->json($course, 201);
+        return response()->json($course->load('academicYear'), 201);
     }
 
     /**
@@ -71,12 +72,13 @@ class CourseController extends Controller
             'color' => 'nullable|string|max:7',
             'description' => 'nullable|string',
             'year' => 'nullable|integer',
+            'year_id' => 'nullable|exists:years,id',
             'schedule_details' => 'nullable|array',
         ]);
 
         $course->update($validated);
 
-        return response()->json($course);
+        return response()->json($course->load('academicYear'));
     }
 
     /**
@@ -95,7 +97,7 @@ class CourseController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        return $course->load(['teachers.user', 'students']);
+        return $course->load(['teachers.user', 'students', 'academicYear']);
     }
 
     // --- Assignments (Admin Only) ---

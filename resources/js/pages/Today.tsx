@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Course, fmtDate } from "@/lib/api";
-import { useCourses, useTodayStats } from "@/hooks/useApi";
+import { useCourses, useTodayStats, useYears } from "@/hooks/useApi";
 import SummaryCards from "@/components/SummaryCards";
 import WeekStrip from "@/components/WeekStrip";
 import CourseCard from "@/components/CourseCard";
@@ -21,9 +21,11 @@ export default function Today() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  // Fetch courses
+  // Fetch courses and years
   const { data: coursesPage, isLoading: coursesLoading } = useCourses();
+  const { data: years, isLoading: yearsLoading } = useYears();
   const courses = coursesPage?.data ?? [];
+  const allYears = years ?? [];
 
   // Fetch attendance stats for the selected date
   const { statsMap, isLoading: statsLoading } = useTodayStats(
@@ -69,40 +71,42 @@ export default function Today() {
     day: "numeric",
   });
 
+  const isLoading = coursesLoading || yearsLoading;
+  const coursesWithoutYear = filteredCourses.filter((c) => !c.year_id);
+
   return (
     <div className="space-y-6 pb-20 lg:pb-8">
       {/* Top bar */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="page-header mb-0">
-          <h1 className="page-title flex items-center gap-2 ms-4">
-            <CalendarDays className="w-6 h-6 text-primary" />
-            {new Date().getFullYear()} مدرسة موال
-          </h1>
+
+          {allYears.map((year) => {
+            const yearCourses = filteredCourses.filter((c) => c.year_id === year.id);
+            if (yearCourses.length === 0) return null;
+
+            return (
+              <div key={year.id} className="space-y-4">
+                <div className="flex items-center justify-between border-b pb-2">
+                  <h2 className="text-xl font-bold text-primary flex items-center gap-2">
+                    <CalendarDays className="w-6 h-6 text-primary" />
+                    {year.title && year.start_year && year.end_year
+                      ? `مدرسة موال ${year.title}, ${year.start_year}-${year.end_year}`
+                      : year.name}
+                  </h2>
+                </div>
+
+                {/* render yearCourses here */}
+              </div>
+            );
+          })}
+
           <p className="page-subtitle">
-            {formattedDate} • {isAdmin ? "عرض المدير" : "عرض المعلم"}
+            {formattedDate}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-
-          {/* <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => setSelectedDate(today)}
-          >
-            <CalendarDays className="w-4 h-4" />
-            اليوم
-          </Button>
-          <div className="relative">
-            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="بحث في الدورات..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="ps-9 h-9 w-48"
-            />
-          </div> */}
+          {/* Search removed as per previous code context, but keeping div for layout if needed */}
         </div>
       </div>
 
@@ -112,44 +116,62 @@ export default function Today() {
       {/* Summary cards */}
       <SummaryCards {...totalStats} />
 
-      {/* Section header */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">
-          {filteredCourses.length} دورة
-        </span>
-        <h2 className="text-lg font-semibold">دورات اليوم</h2>
-      </div>
+      {/* Content */}
+      {
+        isLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {/* Years Sections */}
+            {allYears.map((year) => {
+              const yearCourses = filteredCourses.filter(
+                (c) => c.year_id === year.id
+              );
+              if (yearCourses.length === 0) return null;
 
-      {/* Course grid */}
-      {coursesLoading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      ) : filteredCourses.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredCourses.map((course) => (
-            <CourseCard
-              key={course.id}
-              course={course}
-              stats={statsMap[course.id]}
-              onClick={() => openDrawer(course)}
-              selectedDate={selectedDate}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-16 bg-card rounded-2xl border">
-          <CalendarDays className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
-          <p className="text-muted-foreground font-medium">
-            لا توجد دورات اليوم
-          </p>
-          <p className="text-sm text-muted-foreground/70 mt-1">
-            {search
-              ? "لم يتم العثور على نتائج"
-              : "لا توجد دورات مجدولة لهذا اليوم"}
-          </p>
-        </div>
-      )}
+              return (
+                <div key={year.id} className="space-y-4">
+                  <div className="flex items-center justify-between border-b pb-2">
+
+                    <span className="text-sm text-muted-foreground">
+                      {yearCourses.length} دورات
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {yearCourses.map((course) => (
+                      <CourseCard
+                        key={course.id}
+                        course={course}
+                        stats={statsMap[course.id]}
+                        onClick={() => openDrawer(course)}
+                        selectedDate={selectedDate}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+
+
+
+            {filteredCourses.length === 0 && (
+              <div className="text-center py-16 bg-card rounded-2xl border">
+                <CalendarDays className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
+                <p className="text-muted-foreground font-medium">
+                  لا توجد دورات اليوم
+                </p>
+                <p className="text-sm text-muted-foreground/70 mt-1">
+                  {search
+                    ? "لم يتم العثور على نتائج"
+                    : "لا توجد دورات مجدولة لهذا اليوم"}
+                </p>
+              </div>
+            )}
+          </div>
+        )
+      }
 
       {/* Attendance Drawer */}
       <AttendanceDrawer

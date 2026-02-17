@@ -26,6 +26,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Courses
     Route::apiResource('courses', CourseController::class);
+    Route::apiResource('years', \App\Http\Controllers\Api\YearController::class);
+
     // Course assignments (Admin)
     Route::post('/courses/{course}/teachers', [CourseController::class, 'assignTeacher']);
     Route::delete('/courses/{course}/teachers', [CourseController::class, 'removeTeacher']);
