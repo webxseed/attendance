@@ -11,7 +11,8 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<string | null>;
+  sendOtp: (phone: string) => Promise<string | null>;
+  verifyOtp: (phone: string, code: string) => Promise<string | null>;
   logout: () => Promise<void>;
 }
 
@@ -36,18 +37,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /** Returns `null` on success, or an error message string on failure. */
-  const login = async (
-    email: string,
-    password: string
+  const sendOtp = async (phone: string): Promise<string | null> => {
+    try {
+      await authApi.sendOtp(phone);
+      return null;
+    } catch (err: any) {
+      return (
+        err.response?.data?.message || "حدث خطأ أثناء إرسال رمز التحقق"
+      );
+    }
+  };
+
+  /** Returns `null` on success, or an error message string on failure. */
+  const verifyOtp = async (
+    phone: string,
+    code: string
   ): Promise<string | null> => {
     try {
-      const res = await authApi.login(email, password);
+      const res = await authApi.verifyOtp(phone, code);
       localStorage.setItem("auth_token", res.data.access_token);
       setUser(res.data.user);
       return null;
     } catch (err: any) {
       return (
-        err.response?.data?.message || "حدث خطأ أثناء تسجيل الدخول"
+        err.response?.data?.message || "رمز التحقق غير صحيح"
       );
     }
   };
@@ -64,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated: !!user, isLoading, login, logout }}
+      value={{ user, isAuthenticated: !!user, isLoading, sendOtp, verifyOtp, logout }}
     >
       {children}
     </AuthContext.Provider>

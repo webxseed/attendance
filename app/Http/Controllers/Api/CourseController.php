@@ -48,11 +48,35 @@ class CourseController extends Controller
             'title' => 'required|string|max:255',
             'color' => 'nullable|string|max:7',
             'description' => 'nullable|string',
+            'year' => 'nullable|integer',
+            'schedule_details' => 'nullable|array',
         ]);
 
         $course = Course::create($validated);
 
         return response()->json($course, 201);
+    }
+
+    /**
+     * Update course (Admin only).
+     */
+    public function update(Request $request, Course $course)
+    {
+        if (!$request->user()->isAdmin()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'title' => 'sometimes|required|string|max:255',
+            'color' => 'nullable|string|max:7',
+            'description' => 'nullable|string',
+            'year' => 'nullable|integer',
+            'schedule_details' => 'nullable|array',
+        ]);
+
+        $course->update($validated);
+
+        return response()->json($course);
     }
 
     /**

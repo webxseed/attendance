@@ -61,6 +61,8 @@ export interface Course {
   title: string;
   color: string | null;
   description: string | null;
+  year?: number | null;
+  schedule_details?: { day: string; time: string; note: string }[] | null;
   students_count?: number;
   teachers_count?: number;
   teachers?: Teacher[];
@@ -72,6 +74,15 @@ export interface Student {
   full_name: string;
   external_code: string | null;
   notes: string | null;
+  date_of_birth?: string | null;
+  identity_number?: string | null;
+  grade_level?: string | null;
+  school_name?: string | null;
+  address?: string | null;
+  mother_name?: string | null;
+  mother_phone?: string | null;
+  father_name?: string | null;
+  father_phone?: string | null;
   courses?: Course[];
 }
 
@@ -81,6 +92,7 @@ export interface AttendanceSession {
   date: string;
   created_by_user_id: number | null;
   finalized_at: string | null;
+  note: string | null;
   records: AttendanceRecord[];
 }
 
@@ -157,10 +169,11 @@ export function fmtDate(d: Date): string {
 // ---------------------------------------------------------------------------
 
 export const authApi = {
-  login: (email: string, password: string) =>
+  sendOtp: (phone: string) => api.post("/auth/send-otp", { phone }),
+  verifyOtp: (phone: string, code: string) =>
     api.post<{ access_token: string; token_type: string; user: User }>(
-      "/login",
-      { email, password }
+      "/auth/verify-otp",
+      { phone, code }
     ),
 
   logout: () => api.post("/logout"),
@@ -177,12 +190,23 @@ export const coursesApi = {
 
   show: (id: number) => api.get<Course>(`/courses/${id}`),
 
-  create: (data: { title: string; color?: string; description?: string }) =>
-    api.post<Course>("/courses", data),
+  create: (data: {
+    title: string;
+    color?: string;
+    description?: string;
+    year?: number;
+    schedule_details?: any[];
+  }) => api.post<Course>("/courses", data),
 
   update: (
     id: number,
-    data: { title?: string; color?: string; description?: string }
+    data: {
+      title?: string;
+      color?: string;
+      description?: string;
+      year?: number;
+      schedule_details?: any[];
+    }
   ) => api.put<Course>(`/courses/${id}`, data),
 
   destroy: (id: number) => api.delete(`/courses/${id}`),
@@ -219,6 +243,16 @@ export const teachersApi = {
     password: string;
     phone?: string;
   }) => api.post<Teacher>("/teachers", data),
+
+  update: (
+    id: number,
+    data: {
+      name?: string;
+      email?: string;
+      password?: string;
+      phone?: string;
+    }
+  ) => api.put<Teacher>(`/teachers/${id}`, data),
 };
 
 // ---------------------------------------------------------------------------
@@ -234,7 +268,34 @@ export const studentsApi = {
     full_name: string;
     external_code?: string;
     notes?: string;
+    date_of_birth?: string;
+    identity_number?: string;
+    grade_level?: string;
+    school_name?: string;
+    address?: string;
+    mother_name?: string;
+    mother_phone?: string;
+    father_name?: string;
+    father_phone?: string;
   }) => api.post<Student>("/students", data),
+
+  update: (
+    id: number,
+    data: {
+      full_name?: string;
+      external_code?: string;
+      notes?: string;
+      date_of_birth?: string;
+      identity_number?: string;
+      grade_level?: string;
+      school_name?: string;
+      address?: string;
+      mother_name?: string;
+      mother_phone?: string;
+      father_name?: string;
+      father_phone?: string;
+    }
+  ) => api.put<Student>(`/students/${id}`, data),
 };
 
 // ---------------------------------------------------------------------------
@@ -248,8 +309,11 @@ export const attendanceApi = {
   updateSession: (
     courseId: number,
     date: string,
-    records: { student_id: number; status: string; note?: string }[]
-  ) => api.post(`/attendance/${courseId}/${date}`, { records }),
+    data: {
+      records?: { student_id: number; status: string; note?: string }[];
+      note?: string;
+    }
+  ) => api.post(`/attendance/${courseId}/${date}`, data),
 };
 
 // ---------------------------------------------------------------------------

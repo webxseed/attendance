@@ -114,6 +114,11 @@ class AttendanceController extends Controller
                 );
             }
 
+            // Update session note if provided
+            if ($request->has('note')) {
+                $session->update(['note' => $request->note]);
+            }
+
             // Update session finalized info if needed
             $session->update(['finalized_at' => now()]); // Optional: logic to determining "finalized"
         });

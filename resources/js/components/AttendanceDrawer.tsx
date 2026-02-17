@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Course, toColorTag } from "@/lib/api";
 import { useAttendanceSession, useSaveAttendance } from "@/hooks/useApi";
@@ -46,6 +47,8 @@ export default function AttendanceDrawer({
 
   const saveMutation = useSaveAttendance();
 
+  const [sessionNote, setSessionNote] = useState("");
+
   // Build editable attendance list from the API session
   const initialAttendance = useMemo((): StudentAttendance[] => {
     if (!session?.records) return [];
@@ -63,7 +66,8 @@ export default function AttendanceDrawer({
   // Reset when session changes (new course or date)
   useEffect(() => {
     setAttendance(initialAttendance);
-  }, [initialAttendance]);
+    setSessionNote(session?.note ?? "");
+  }, [initialAttendance, session?.note]);
 
   const markedCount = attendance.filter((a) => a.status !== "unmarked").length;
   const presentCount = attendance.filter((a) => a.status === "present").length;
@@ -77,9 +81,9 @@ export default function AttendanceDrawer({
       prev.map((a) =>
         a.studentId === studentId
           ? {
-              ...a,
-              status: a.status === "present" ? "absent" : "present",
-            }
+            ...a,
+            status: a.status === "present" ? "absent" : "present",
+          }
           : a
       )
     );
@@ -101,6 +105,7 @@ export default function AttendanceDrawer({
     setAttendance((prev) =>
       prev.map((a) => ({ ...a, status: "unmarked" as UiStatus, note: "" }))
     );
+    setSessionNote("");
   };
 
   const handleSave = async () => {
@@ -115,17 +120,22 @@ export default function AttendanceDrawer({
         note: a.note || undefined,
       }));
 
-    if (records.length === 0) {
+    if (records.length === 0 && sessionNote === (session?.note ?? "")) {
       toast({
         title: "لا يوجد تغييرات",
-        description: "يرجى تسجيل حضور طالب واحد على الأقل",
+        description: "يرجى تسجيل حضور طالب واحد على الأقل أو تعديل الملاحظة العامة",
         variant: "destructive",
       });
       return;
     }
 
     saveMutation.mutate(
-      { courseId: course.id, date, records },
+      {
+        courseId: course.id,
+        date,
+        records: records.length > 0 ? records : undefined,
+        note: sessionNote !== (session?.note ?? "") ? sessionNote : undefined
+      },
       {
         onSuccess: () => {
           toast({
@@ -194,6 +204,17 @@ export default function AttendanceDrawer({
             <RotateCcw className="w-3.5 h-3.5" />
             مسح الكل
           </Button>
+        </div>
+
+        {/* General Note */}
+        <div className="px-5 py-3 border-b bg-muted/10">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 block">ملاحظة عامة (مثال: توقيت رمضان)</Label>
+          <Input
+            value={sessionNote}
+            onChange={(e) => setSessionNote(e.target.value)}
+            placeholder="أدخل ملاحظة عامة لليوم..."
+            className="h-8 text-sm"
+          />
         </div>
 
         {/* Student list */}

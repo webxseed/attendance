@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useTeachers, useCreateTeacher } from "@/hooks/useApi";
+import { useTeachers, useCreateTeacher, useUpdateTeacher } from "@/hooks/useApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,8 +10,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Users, Plus, Search, Mail, Phone, Loader2 } from "lucide-react";
+import { Users, Plus, Search, Mail, Phone, Loader2, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Teacher } from "@/lib/api";
 
 export default function Teachers() {
   const [search, setSearch] = useState("");
@@ -19,6 +20,7 @@ export default function Teachers() {
   const { toast } = useToast();
 
   // Form state
+  const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,51 +29,97 @@ export default function Teachers() {
   // API
   const { data: teachersPage, isLoading } = useTeachers();
   const createMutation = useCreateTeacher();
+  const updateMutation = useUpdateTeacher();
   const teachers = teachersPage?.data ?? [];
 
   const filtered = search
     ? teachers.filter(
-        (t) =>
-          (t.user?.name ?? "").includes(search) ||
-          (t.user?.email ?? "").includes(search)
-      )
+      (t) =>
+        (t.user?.name ?? "").includes(search) ||
+        (t.user?.email ?? "").includes(search)
+    )
     : teachers;
 
   const resetForm = () => {
+    setEditingTeacher(null);
     setName("");
     setEmail("");
     setPassword("");
     setPhone("");
   };
 
-  const handleCreate = () => {
-    if (!name.trim() || !email.trim() || !password.trim()) return;
-    createMutation.mutate(
-      {
-        name: name.trim(),
-        email: email.trim(),
-        password,
-        phone: phone.trim() || undefined,
-      },
-      {
-        onSuccess: () => {
-          toast({
-            title: "تمت الإضافة",
-            description: "تمت إضافة المعلم بنجاح",
-          });
-          resetForm();
-          setDialogOpen(false);
+  const handleEdit = (teacher: Teacher) => {
+    setEditingTeacher(teacher);
+    setName(teacher.user?.name ?? "");
+    setEmail(teacher.user?.email ?? "");
+    setPassword(""); // Leave empty to keep existing
+    setPhone(teacher.phone ?? "");
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = () => {
+    if (editingTeacher) {
+      // Update
+      if (!name.trim() || !email.trim()) return;
+      updateMutation.mutate(
+        {
+          id: editingTeacher.id,
+          data: {
+            name: name.trim(),
+            email: email.trim(),
+            password: password ? password : undefined,
+            phone: phone.trim() || undefined,
+          },
         },
-        onError: (err: any) => {
-          toast({
-            title: "خطأ",
-            description:
-              err.response?.data?.message || "تعذّر إضافة المعلم",
-            variant: "destructive",
-          });
+        {
+          onSuccess: () => {
+            toast({
+              title: "تم التحديث",
+              description: "تم تحديث بيانات المعلم بنجاح",
+            });
+            resetForm();
+            setDialogOpen(false);
+          },
+          onError: (err: any) => {
+            toast({
+              title: "خطأ",
+              description:
+                err.response?.data?.message || "تعذّر تحديث المعلم",
+              variant: "destructive",
+            });
+          },
+        }
+      );
+    } else {
+      // Create
+      if (!name.trim() || !email.trim() || !password.trim()) return;
+      createMutation.mutate(
+        {
+          name: name.trim(),
+          email: email.trim(),
+          password,
+          phone: phone.trim() || undefined,
         },
-      }
-    );
+        {
+          onSuccess: () => {
+            toast({
+              title: "تمت الإضافة",
+              description: "تمت إضافة المعلم بنجاح",
+            });
+            resetForm();
+            setDialogOpen(false);
+          },
+          onError: (err: any) => {
+            toast({
+              title: "خطأ",
+              description:
+                err.response?.data?.message || "تعذّر إضافة المعلم",
+              variant: "destructive",
+            });
+          },
+        }
+      );
+    }
   };
 
   return (
@@ -82,7 +130,13 @@ export default function Teachers() {
       </div>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            if (!open) resetForm();
+            setDialogOpen(open);
+          }}
+        >
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="w-4 h-4" />
@@ -91,7 +145,9 @@ export default function Teachers() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>إضافة معلم جديد</DialogTitle>
+              <DialogTitle>
+                {editingTeacher ? "تعديل بيانات المعلم" : "إضافة معلم جديد"}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
@@ -112,10 +168,13 @@ export default function Teachers() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>كلمة المرور</Label>
+                <Label>
+                  كلمة المرور
+                  {editingTeacher && <span className="text-xs text-muted-foreground font-normal"> (اتركها فارغة للإبقاء على الحالية)</span>}
+                </Label>
                 <Input
                   type="password"
-                  placeholder="كلمة مرور (8 أحرف على الأقل)"
+                  placeholder={editingTeacher ? "********" : "كلمة مرور (8 أحرف على الأقل)"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -140,16 +199,16 @@ export default function Teachers() {
                   إلغاء
                 </Button>
                 <Button
-                  onClick={handleCreate}
+                  onClick={handleSubmit}
                   className="flex-1"
                   disabled={
-                    createMutation.isPending ||
+                    (editingTeacher ? updateMutation.isPending : createMutation.isPending) ||
                     !name.trim() ||
                     !email.trim() ||
-                    !password.trim()
+                    (!editingTeacher && !password.trim())
                   }
                 >
-                  {createMutation.isPending ? (
+                  {createMutation.isPending || updateMutation.isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     "حفظ"
@@ -178,7 +237,17 @@ export default function Teachers() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtered.map((teacher) => (
-            <div key={teacher.id} className="stat-card animate-fade-in">
+            <div key={teacher.id} className="stat-card animate-fade-in relative group">
+              <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handleEdit(teacher)}
+                >
+                  <Pencil className="w-4 h-4 text-muted-foreground" />
+                </Button>
+              </div>
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-2">
                   {teacher.phone && (
@@ -187,7 +256,7 @@ export default function Teachers() {
                     </span>
                   )}
                 </div>
-                <h3 className="font-semibold">
+                <h3 className="font-semibold pe-8">
                   {teacher.user?.name ?? "—"}
                 </h3>
               </div>

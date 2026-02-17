@@ -31,21 +31,20 @@ class TeacherController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'password' => 'required|string|min:8',
-            'phone' => 'nullable|string',
+            'email' => 'nullable|email|unique:users,email',
+            'phone' => 'required|string|unique:users,phone',
         ]);
 
         return DB::transaction(function () use ($validated) {
             $user = User::create([
                 'name' => $validated['name'],
-                'email' => $validated['email'],
-                'password' => Hash::make($validated['password']),
+                'email' => $validated['email'] ?? null,
+                'phone' => $validated['phone'],
                 'role' => 'teacher',
             ]);
 
             $teacher = $user->teacher()->create([
-                'phone' => $validated['phone'] ?? null,
+                'phone' => $validated['phone'],
             ]);
 
             return response()->json($teacher->load('user'), 201);
@@ -64,5 +63,36 @@ class TeacherController extends Controller
         }
 
         return $teacher->load(['user', 'courses']);
+    }
+
+    /**
+     * Update teacher (and user). (Admin only)
+     */
+    public function update(Request $request, Teacher $teacher)
+    {
+        if (!$request->user()->isAdmin()) return response()->json(['message' => 'Unauthorized'], 403);
+
+        $validated = $request->validate([
+            'name' => 'sometimes|required|string|max:255',
+            'email' => ['sometimes', 'nullable', 'email', Rule::unique('users')->ignore($teacher->user_id)],
+            'phone' => ['sometimes', 'required', 'string', Rule::unique('users')->ignore($teacher->user_id)],
+        ]);
+
+        return DB::transaction(function () use ($validated, $teacher) {
+            $updateData = [];
+            if (isset($validated['name'])) $updateData['name'] = $validated['name'];
+            if (isset($validated['email'])) $updateData['email'] = $validated['email'];
+            if (isset($validated['phone'])) $updateData['phone'] = $validated['phone'];
+
+            if (!empty($updateData)) {
+                $teacher->user->update($updateData);
+            }
+
+            if (isset($validated['phone'])) {
+                $teacher->update(['phone' => $validated['phone']]);
+            }
+
+            return response()->json($teacher->load('user'));
+        });
     }
 }

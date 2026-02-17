@@ -38,9 +38,37 @@ export function useCourse(id: number) {
 export function useCreateCourse() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { title: string; color?: string; description?: string }) =>
-      coursesApi.create(data).then((r) => r.data),
+    mutationFn: (data: {
+      title: string;
+      color?: string;
+      description?: string;
+      year?: number;
+      schedule_details?: any[];
+    }) => coursesApi.create(data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["courses"] }),
+  });
+}
+
+export function useUpdateCourse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: {
+        title?: string;
+        color?: string;
+        description?: string;
+        year?: number;
+        schedule_details?: any[];
+      };
+    }) => coursesApi.update(id, data).then((r) => r.data),
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: ["courses", id] });
+      qc.invalidateQueries({ queryKey: ["courses"] });
+    },
   });
 }
 
@@ -124,6 +152,28 @@ export function useCreateTeacher() {
   });
 }
 
+export function useUpdateTeacher() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: {
+        name?: string;
+        email?: string;
+        password?: string;
+        phone?: string;
+      };
+    }) => teachersApi.update(id, data).then((r) => r.data),
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: ["teachers", id] });
+      qc.invalidateQueries({ queryKey: ["teachers"] });
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Students
 // ---------------------------------------------------------------------------
@@ -147,6 +197,27 @@ export function useCreateStudent() {
   });
 }
 
+export function useUpdateStudent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: {
+        full_name?: string;
+        external_code?: string;
+        notes?: string;
+      };
+    }) => studentsApi.update(id, data).then((r) => r.data),
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: ["students", id] });
+      qc.invalidateQueries({ queryKey: ["students"] });
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Attendance
 // ---------------------------------------------------------------------------
@@ -167,11 +238,13 @@ export function useSaveAttendance() {
       courseId,
       date,
       records,
+      note,
     }: {
       courseId: number;
       date: string;
-      records: { student_id: number; status: string; note?: string }[];
-    }) => attendanceApi.updateSession(courseId, date, records),
+      records?: { student_id: number; status: string; note?: string }[];
+      note?: string;
+    }) => attendanceApi.updateSession(courseId, date, { records, note }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["attendance"] });
       qc.invalidateQueries({ queryKey: ["daily-overview"] });
@@ -220,10 +293,10 @@ export function useTodayStats(courses: Course[], date: string) {
   const attendanceQueries = useQueries({
     queries: !isAdmin
       ? courses.map((c) => ({
-          queryKey: ["attendance", c.id, date],
-          queryFn: () =>
-            attendanceApi.getSession(c.id, date).then((r) => r.data),
-        }))
+        queryKey: ["attendance", c.id, date],
+        queryFn: () =>
+          attendanceApi.getSession(c.id, date).then((r) => r.data),
+      }))
       : [],
   });
 

@@ -29,6 +29,15 @@ class StudentController extends Controller
             'full_name' => 'required|string|max:255',
             'external_code' => 'nullable|string|unique:students,external_code',
             'notes' => 'nullable|string',
+            'date_of_birth' => 'nullable|date',
+            'identity_number' => 'nullable|string|unique:students,identity_number',
+            'grade_level' => 'nullable|string|max:255',
+            'school_name' => 'nullable|string|max:255',
+            'address' => 'nullable|string',
+            'mother_name' => 'nullable|string|max:255',
+            'mother_phone' => 'nullable|string|max:255',
+            'father_name' => 'nullable|string|max:255',
+            'father_phone' => 'nullable|string|max:255',
         ]);
 
         $student = Student::create($validated);
@@ -43,6 +52,33 @@ class StudentController extends Controller
     {
         if (!$request->user()->isAdmin()) return response()->json(['message' => 'Unauthorized'], 403);
 
-        return $student->load(['courses']); // load courses
+        return $student->load(['courses']);
+    }
+
+    /**
+     * Update student. (Admin only)
+     */
+    public function update(Request $request, Student $student)
+    {
+        if (!$request->user()->isAdmin()) return response()->json(['message' => 'Unauthorized'], 403);
+
+        $validated = $request->validate([
+            'full_name' => 'sometimes|required|string|max:255',
+            'external_code' => 'nullable|string|unique:students,external_code,' . $student->id,
+            'notes' => 'nullable|string',
+            'date_of_birth' => 'nullable|date',
+            'identity_number' => 'nullable|string|unique:students,identity_number,' . $student->id,
+            'grade_level' => 'nullable|string|max:255',
+            'school_name' => 'nullable|string|max:255',
+            'address' => 'nullable|string',
+            'mother_name' => 'nullable|string|max:255',
+            'mother_phone' => 'nullable|string|max:255',
+            'father_name' => 'nullable|string|max:255',
+            'father_phone' => 'nullable|string|max:255',
+        ]);
+
+        $student->update($validated);
+
+        return response()->json($student);
     }
 }

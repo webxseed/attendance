@@ -9,7 +9,11 @@ class Course extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title', 'color', 'description'];
+    protected $fillable = ['title', 'color', 'description', 'year', 'schedule_details'];
+
+    protected $casts = [
+        'schedule_details' => 'array',
+    ];
 
     public function teachers()
     {

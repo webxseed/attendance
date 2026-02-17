@@ -15,8 +15,9 @@ use App\Http\Controllers\Api\ReportController;
 |--------------------------------------------------------------------------
 */
 
-// Public routes
-Route::post('/login', [AuthController::class, 'login']);
+// Public routes – OTP auth
+Route::post('/auth/send-otp', [AuthController::class, 'sendOtp']);
+Route::post('/auth/verify-otp', [AuthController::class, 'verifyOtp']);
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {

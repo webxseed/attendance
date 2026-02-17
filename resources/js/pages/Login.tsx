@@ -4,32 +4,49 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BookOpen, Eye, EyeOff, Loader2 } from "lucide-react";
+import { BookOpen, Loader2, Phone, KeyRound, ArrowRight } from "lucide-react";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [step, setStep] = useState<"phone" | "otp">("phone");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+
+  const { sendOtp, verifyOtp } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (!email.trim()) {
-      setError("يرجى إدخال البريد الإلكتروني");
-      return;
-    }
-    if (!password.trim()) {
-      setError("يرجى إدخال كلمة المرور");
+    if (!phone.trim()) {
+      setError("يرجى إدخال رقم الهاتف");
       return;
     }
 
     setLoading(true);
-    const errorMsg = await login(email, password);
+    const errorMsg = await sendOtp(phone);
+    setLoading(false);
+
+    if (errorMsg) {
+      setError(errorMsg);
+    } else {
+      setStep("otp");
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (!otp.trim()) {
+      setError("يرجى إدخال رمز التحقق");
+      return;
+    }
+
+    setLoading(true);
+    const errorMsg = await verifyOtp(phone, otp);
     setLoading(false);
 
     if (errorMsg) {
@@ -53,56 +70,64 @@ export default function Login() {
 
         {/* Login Card */}
         <div className="bg-card rounded-2xl border shadow-sm p-8">
-          <h2 className="text-lg font-semibold mb-6">تسجيل الدخول</h2>
+          <h2 className="text-lg font-semibold mb-6">
+            {step === "phone" ? "تسجيل الدخول" : "تأكيد رقم الهاتف"}
+          </h2>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="email">البريد الإلكتروني</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="أدخل البريد الإلكتروني"
-                className="h-11 text-right"
-                autoFocus
-                disabled={loading}
-              />
-            </div>
+          <form onSubmit={step === "phone" ? handleSendOtp : handleVerifyOtp} className="space-y-5">
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  className="text-xs text-primary hover:underline"
-                >
-                  نسيت كلمة المرور؟
-                </button>
-                <Label htmlFor="password">كلمة المرور</Label>
+            {step === "phone" && (
+              <div className="space-y-2">
+                <Label htmlFor="phone">رقم الهاتف</Label>
+                <div className="relative">
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="05XXXXXXXX"
+                    className="h-11 text-right pe-10"
+                    autoFocus
+                    disabled={loading}
+                    dir="ltr"
+                  />
+                  <Phone className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                </div>
               </div>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="أدخل كلمة المرور"
-                  className="h-11 text-right pe-10"
-                  disabled={loading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
+            )}
+
+            {step === "otp" && (
+              <div className="space-y-2 animate-in slide-in-from-right-4 fade-in duration-300">
+                <div className="flex justify-between items-center mb-2">
+                  <Label htmlFor="otp">رمز التحقق</Label>
+                  <button
+                    type="button"
+                    onClick={() => setStep("phone")}
+                    className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
+                  >
+                    <ArrowRight className="w-3 h-3" />
+                    تغيير الرقم
+                  </button>
+                </div>
+                <div className="relative">
+                  <Input
+                    id="otp"
+                    type="text"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    placeholder="Enter code"
+                    className="h-11 text-center tracking-widest text-lg"
+                    autoFocus
+                    disabled={loading}
+                    maxLength={4}
+                  />
+                  <KeyRound className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                </div>
+                <p className="text-xs text-muted-foreground text-center pt-2">
+                  تم إرسال رمز التحقق إلى الرقم {phone}
+                </p>
               </div>
-            </div>
+            )}
 
             {error && (
               <p className="text-sm text-destructive bg-destructive/10 rounded-lg p-3">
@@ -117,10 +142,13 @@ export default function Login() {
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
+              ) : step === "phone" ? (
+                "إرسال رمز التحقق"
               ) : (
-                "تسجيل الدخول"
+                "التحقق والدخول"
               )}
             </Button>
+
           </form>
         </div>
       </div>

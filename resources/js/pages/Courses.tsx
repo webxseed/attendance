@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Course, toColorTag } from "@/lib/api";
 import {
   useCourses,
   useCourse,
   useCreateCourse,
+  useUpdateCourse,
   useTeachers,
   useStudents,
   useAssignTeacher,
@@ -65,6 +66,10 @@ export default function Courses() {
   const [title, setTitle] = useState("");
   const [color, setColor] = useState("teal");
   const [description, setDescription] = useState("");
+  const [year, setYear] = useState<string>("");
+  const [scheduleDetails, setScheduleDetails] = useState<
+    { day: string; time: string; note: string }[]
+  >([]);
 
   // API – list
   const { data: coursesPage, isLoading } = useCourses();
@@ -79,6 +84,22 @@ export default function Courses() {
     setTitle("");
     setColor("teal");
     setDescription("");
+    setYear("");
+    setScheduleDetails([]);
+  };
+
+  const addScheduleItem = () => {
+    setScheduleDetails([...scheduleDetails, { day: "Sunday", time: "10:00", note: "" }]);
+  };
+
+  const removeScheduleItem = (index: number) => {
+    setScheduleDetails(scheduleDetails.filter((_, i) => i !== index));
+  };
+
+  const updateScheduleItem = (index: number, field: keyof typeof scheduleDetails[0], value: string) => {
+    const newDetails = [...scheduleDetails];
+    newDetails[index] = { ...newDetails[index], [field]: value };
+    setScheduleDetails(newDetails);
   };
 
   const handleCreate = () => {
@@ -88,6 +109,8 @@ export default function Courses() {
         title: title.trim(),
         color,
         description: description.trim() || undefined,
+        year: year ? parseInt(year) : undefined,
+        schedule_details: scheduleDetails.length > 0 ? scheduleDetails : undefined,
       },
       {
         onSuccess: () => {
@@ -168,6 +191,83 @@ export default function Courses() {
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label>السنة الدراسية</Label>
+                <Input
+                  type="number"
+                  placeholder="2026"
+                  value={year}
+                  onChange={(e) => setYear(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>الأيام والأوقات</Label>
+                <div className="space-y-2">
+                  {scheduleDetails.map((item, index) => (
+                    <div key={index} className="flex gap-2 items-start">
+                      <Select
+                        value={item.day}
+                        onValueChange={(val) => updateScheduleItem(index, "day", val)}
+                      >
+                        <SelectTrigger className="w-[110px]">
+                          <SelectValue placeholder="اليوم" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map(
+                            (day) => (
+                              <SelectItem key={day} value={day}>
+                                {new Intl.DateTimeFormat("ar-EG", { weekday: "long" }).format(
+                                  new Date(
+                                    day === "Sunday" ? "2023-01-01" :
+                                      day === "Monday" ? "2023-01-02" :
+                                        day === "Tuesday" ? "2023-01-03" :
+                                          day === "Wednesday" ? "2023-01-04" :
+                                            day === "Thursday" ? "2023-01-05" :
+                                              day === "Friday" ? "2023-01-06" :
+                                                "2023-01-07"
+                                  )
+                                )}
+                              </SelectItem>
+                            )
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="time"
+                        className="w-[100px]"
+                        value={item.time}
+                        onChange={(e) => updateScheduleItem(index, "time", e.target.value)}
+                      />
+                      <Input
+                        placeholder="ملاحظة (مثل:،)"
+                        className="flex-1"
+                        value={item.note}
+                        onChange={(e) => updateScheduleItem(index, "note", e.target.value)}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-10 w-10 text-destructive"
+                        onClick={() => removeScheduleItem(index)}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2 border-dashed"
+                    onClick={addScheduleItem}
+                  >
+                    <Plus className="w-4 h-4" />
+                    إضافة موعد
+                  </Button>
+                </div>
+              </div>
               <div className="flex gap-2 pt-2">
                 <Button
                   variant="outline"
@@ -233,7 +333,14 @@ export default function Courses() {
                     style={{ minWidth: 8 }}
                   />
                   <div>
-                    <p className="font-medium text-sm">{course.title}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-sm">{course.title}</p>
+                      {course.year && (
+                        <Badge variant="outline" className="text-[10px] h-4 px-1">
+                          {course.year}
+                        </Badge>
+                      )}
+                    </div>
                     {course.description && (
                       <p className="text-xs text-muted-foreground">
                         {course.description}
@@ -305,12 +412,76 @@ function CourseManageSheet({
   const removeTeacher = useRemoveTeacher();
   const assignStudent = useAssignStudent();
   const removeStudent = useRemoveStudent();
+  const updateCourse = useUpdateCourse();
+
+  // Edit form state
+  const [isEditing, setIsEditing] = useState(false);
+  const [title, setTitle] = useState("");
+  const [color, setColor] = useState("");
+  const [description, setDescription] = useState("");
+  const [year, setYear] = useState("");
+  const [scheduleDetails, setScheduleDetails] = useState<
+    { day: string; time: string; note: string }[]
+  >([]);
+
+  // Sync edit form state when course is loaded
+  useEffect(() => {
+    if (course && !isEditing) {
+      setTitle(course.title);
+      setColor(course.color || "teal");
+      setDescription(course.description || "");
+      setYear(course.year?.toString() || "");
+      setScheduleDetails(course.schedule_details || []);
+    }
+  }, [course, isEditing]);
 
   // Local select values
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>("");
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
 
   if (!open || !courseId) return null;
+
+  const handleUpdate = () => {
+    updateCourse.mutate(
+      {
+        id: courseId,
+        data: {
+          title,
+          color,
+          description,
+          year: year ? parseInt(year) : undefined,
+          schedule_details: scheduleDetails,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "تم التحديث", description: "تم تحديث بيانات الدورة بنجاح" });
+          setIsEditing(false);
+        },
+        onError: (err: any) => {
+          toast({
+            title: "خطأ",
+            description: err.response?.data?.message || "تعذّر التحديث",
+            variant: "destructive",
+          });
+        },
+      }
+    );
+  };
+
+  const addScheduleItem = () => {
+    setScheduleDetails([...scheduleDetails, { day: "Sunday", time: "10:00", note: "" }]);
+  };
+
+  const removeScheduleItem = (index: number) => {
+    setScheduleDetails(scheduleDetails.filter((_, i) => i !== index));
+  };
+
+  const updateScheduleItem = (index: number, field: keyof typeof scheduleDetails[0], value: string) => {
+    const newDetails = [...scheduleDetails];
+    newDetails[index] = { ...newDetails[index], [field]: value };
+    setScheduleDetails(newDetails);
+  };
 
   const assignedTeacherIds = new Set(
     (course?.teachers ?? []).map((t) => t.id)
@@ -417,13 +588,23 @@ function CourseManageSheet({
         <SheetHeader className="p-5 pb-4 border-b">
           <SheetTitle className="text-start">
             <div className="flex items-center justify-between">
-              <span className={`course-tag course-tag-${colorTag}`}>
-                {colorTag}
-              </span>
-              <span>{course?.title ?? "..."}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-primary gap-1"
+                onClick={() => setIsEditing(!isEditing)}
+              >
+                {isEditing ? "إلغاء التعديل" : "تعديل البيانات"}
+              </Button>
+              <div className="flex items-center gap-2">
+                <span className={`course-tag course-tag-${colorTag}`}>
+                  {colorTag}
+                </span>
+                <span>{course?.title ?? "..."}</span>
+              </div>
             </div>
-            {course?.description && (
-              <p className="text-sm font-normal text-muted-foreground mt-1">
+            {course?.description && !isEditing && (
+              <p className="text-sm font-normal text-muted-foreground mt-1 text-end">
                 {course.description}
               </p>
             )}
@@ -436,14 +617,139 @@ function CourseManageSheet({
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto">
+            {/* ---- Edit Course form ---- */}
+            {isEditing && (
+              <div className="p-5 border-b bg-muted/20 space-y-4">
+                <div className="space-y-2">
+                  <Label>اسم الدورة</Label>
+                  <Input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>اللون</Label>
+                  <Select value={color} onValueChange={setColor}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {colorOptions.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`w-3 h-3 rounded-full course-tag-${opt.value}`}
+                              style={{ display: "inline-block" }}
+                            />
+                            {opt.label}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>الوصف</Label>
+                  <Input
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>السنة الدراسية</Label>
+                  <Input
+                    type="number"
+                    value={year}
+                    onChange={(e) => setYear(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>الأيام والأوقات</Label>
+                  <div className="space-y-2">
+                    {scheduleDetails.map((item, index) => (
+                      <div key={index} className="flex gap-2 items-start">
+                        <Select
+                          value={item.day}
+                          onValueChange={(val) => updateScheduleItem(index, "day", val)}
+                        >
+                          <SelectTrigger className="w-[110px]">
+                            <SelectValue placeholder="اليوم" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map(
+                              (day) => (
+                                <SelectItem key={day} value={day}>
+                                  {new Intl.DateTimeFormat("ar-EG", { weekday: "long" }).format(
+                                    new Date(
+                                      day === "Sunday" ? "2023-01-01" :
+                                        day === "Monday" ? "2023-01-02" :
+                                          day === "Tuesday" ? "2023-01-03" :
+                                            day === "Wednesday" ? "2023-01-04" :
+                                              day === "Thursday" ? "2023-01-05" :
+                                                day === "Friday" ? "2023-01-06" :
+                                                  "2023-01-07"
+                                    )
+                                  )}
+                                </SelectItem>
+                              )
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="time"
+                          className="w-[100px]"
+                          value={item.time}
+                          onChange={(e) => updateScheduleItem(index, "time", e.target.value)}
+                        />
+                        <Input
+                          placeholder="ملاحظة"
+                          className="flex-1"
+                          value={item.note}
+                          onChange={(e) => updateScheduleItem(index, "note", e.target.value)}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-10 text-destructive"
+                          onClick={() => removeScheduleItem(index)}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full gap-2 border-dashed"
+                      onClick={addScheduleItem}
+                    >
+                      <Plus className="w-4 h-4" />
+                      إضافة موعد
+                    </Button>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleUpdate}
+                  className="w-full"
+                  disabled={updateCourse.isPending || !title.trim()}
+                >
+                  {updateCourse.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin ms-2" />
+                  ) : null}
+                  حفظ التعديلات
+                </Button>
+              </div>
+            )}
+
             {/* ---- Teachers section ---- */}
-            <div className="p-5 border-b">
-              <div className="flex items-center gap-2 mb-4">
-                <Users className="w-4 h-4 text-primary" />
-                <h3 className="font-semibold text-sm">المعلمون</h3>
+            <div className="p-5 border-b text-end">
+              <div className="flex items-center justify-end gap-2 mb-4">
                 <Badge variant="secondary" className="text-xs">
                   {course?.teachers?.length ?? 0}
                 </Badge>
+                <h3 className="font-semibold text-sm">المعلمون</h3>
+                <Users className="w-4 h-4 text-primary" />
               </div>
 
               {/* Assigned teachers */}
