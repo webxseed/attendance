@@ -9,12 +9,10 @@ function LayoutContent() {
 
   return (
     <div className="flex min-h-screen w-full bg-background relative">
-      {/* Sidebar - Desktop: Conditional */}
-      {isVisible && (
-        <div className="h-screen sticky top-0 z-30 hidden lg:block border-e">
-          <AppSidebar />
-        </div>
-      )}
+      {/* Sidebar - Desktop: Always Rendered */}
+      <div className="h-screen sticky top-0 z-30 hidden lg:block border-e">
+        <AppSidebar />
+      </div>
 
       {/* Sidebar - Mobile: Always rendered (handles its own visibility state internally) */}
       <div className="lg:hidden">
