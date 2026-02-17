@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 const adminLinks = [
   { to: "/today", label: "لوحة اليوم", icon: LayoutDashboard },
   { to: "/courses", label: "الدورات", icon: BookOpen },
-  { to: "/teachers", label: "المعلمون", icon: Users },
+  { to: "/users", label: "المستخدمون", icon: Users },
   { to: "/students", label: "الطلاب", icon: GraduationCap },
   { to: "/reports", label: "التقارير", icon: BarChart3 },
   { to: "/settings", label: "الإعدادات", icon: Settings },

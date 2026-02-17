@@ -38,6 +38,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Students (Admin)
     Route::apiResource('students', StudentController::class);
 
+    // Users (Admin)
+    Route::apiResource('users', \App\Http\Controllers\Api\UserController::class);
+
     // Attendance (Teacher/Admin)
     // Using simple parameters instead of resource for custom flow
     Route::get('/attendance/{course}/{date}', [AttendanceController::class, 'show']);

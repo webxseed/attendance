@@ -8,11 +8,13 @@ import {
   coursesApi,
   teachersApi,
   studentsApi,
+  usersApi,
   attendanceApi,
   reportsApi,
   Course,
   CourseStats,
   DailyOverviewItem,
+  User,
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -129,6 +131,42 @@ export function useRemoveStudent() {
 }
 
 // ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+export function useUsers() {
+  return useQuery({
+    queryKey: ["users"],
+    queryFn: () => usersApi.list().then((r) => r.data),
+  });
+}
+
+export function useCreateUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<User>) => usersApi.create(data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["users"] }),
+  });
+}
+
+export function useUpdateUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<User> }) =>
+      usersApi.update(id, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["users"] }),
+  });
+}
+
+export function useDeleteUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => usersApi.destroy(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["users"] }),
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Teachers
 // ---------------------------------------------------------------------------
 
@@ -136,39 +174,6 @@ export function useTeachers() {
   return useQuery({
     queryKey: ["teachers"],
     queryFn: () => teachersApi.list().then((r) => r.data),
-  });
-}
-
-export function useCreateTeacher() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (data: {
-      name: string;
-      email: string;
-      phone?: string;
-    }) => teachersApi.create(data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["teachers"] }),
-  });
-}
-
-export function useUpdateTeacher() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      id,
-      data,
-    }: {
-      id: number;
-      data: {
-        name?: string;
-        email?: string;
-        phone?: string;
-      };
-    }) => teachersApi.update(id, data).then((r) => r.data),
-    onSuccess: (_data, { id }) => {
-      qc.invalidateQueries({ queryKey: ["teachers", id] });
-      qc.invalidateQueries({ queryKey: ["teachers"] });
-    },
   });
 }
 
@@ -277,6 +282,7 @@ export function useDailyOverview(date: string, enabled = true) {
     queryKey: ["daily-overview", date],
     queryFn: () => reportsApi.dailyOverview(date).then((r) => r.data),
     enabled: enabled && !!date,
+    refetchInterval: 5000, // Poll every 5 seconds for realtime updates
   });
 }
 
@@ -312,6 +318,9 @@ export function useTodayStats(courses: Course[], date: string) {
         queryKey: ["attendance", c.id, date],
         queryFn: () =>
           attendanceApi.getSession(c.id, date).then((r) => r.data),
+        // Poll for teachers too so they see their own updates if made from another device, 
+        // though less critical than admin dashboard
+        refetchInterval: 5000,
       }))
       : [],
   });

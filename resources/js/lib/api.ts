@@ -43,8 +43,10 @@ api.interceptors.response.use(
 export interface User {
   id: number;
   name: string;
-  email: string;
+  email: string | null;
+  phone: string | null;
   role: "admin" | "teacher";
+  password?: string;
   teacher?: Teacher | null;
 }
 
@@ -226,6 +228,18 @@ export const coursesApi = {
     api.delete(`/courses/${courseId}/students`, {
       data: { student_id: studentId },
     }),
+};
+
+// ---------------------------------------------------------------------------
+// Users API
+// ---------------------------------------------------------------------------
+
+export const usersApi = {
+  list: () => api.get<PaginatedResponse<User>>("/users"),
+  show: (id: number) => api.get<User>(`/users/${id}`),
+  create: (data: Partial<User>) => api.post<User>("/users", data),
+  update: (id: number, data: Partial<User>) => api.put<User>(`/users/${id}`, data),
+  destroy: (id: number) => api.delete(`/users/${id}`),
 };
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Course, toColorTag } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   useCourses,
   useCourse,
@@ -12,6 +13,7 @@ import {
   useAssignStudent,
   useRemoveStudent,
   useCreateStudent,
+  useDeleteCourse,
 } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -65,6 +67,7 @@ import {
   Check,
   ChevronsUpDown,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -448,6 +451,9 @@ function CourseManageSheet({
   const assignStudent = useAssignStudent();
   const removeStudent = useRemoveStudent();
   const updateCourse = useUpdateCourse();
+  const deleteCourse = useDeleteCourse();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   // Edit form state
   const [isEditing, setIsEditing] = useState(false);
@@ -571,6 +577,24 @@ function CourseManageSheet({
         },
       }
     );
+  };
+
+  const handleDelete = () => {
+    if (!confirm("هل أنت متأكد من رغبتك في حذف هذه الدورة؟ لا يمكن التراجع عن هذا الإجراء.")) return;
+
+    deleteCourse.mutate(courseId, {
+      onSuccess: () => {
+        toast({ title: "تم الحذف", description: "تم حذف الدورة بنجاح" });
+        onClose();
+      },
+      onError: (err: any) => {
+        toast({
+          title: "خطأ",
+          description: err.response?.data?.message || "تعذّر الحذف",
+          variant: "destructive",
+        });
+      },
+    });
   };
 
   const addScheduleItem = () => {
@@ -848,16 +872,18 @@ function CourseManageSheet({
                     </Button>
                   </div>
                 </div>
-                <Button
-                  onClick={handleUpdate}
-                  className="w-full"
-                  disabled={updateCourse.isPending || !title.trim()}
-                >
-                  {updateCourse.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin ms-2" />
-                  ) : null}
-                  حفظ التعديلات
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleUpdate}
+                    className="flex-1"
+                    disabled={updateCourse.isPending || !title.trim()}
+                  >
+                    {updateCourse.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin ms-2" />
+                    ) : null}
+                    حفظ التعديلات
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -1063,6 +1089,23 @@ function CourseManageSheet({
                   </Popover>
                 </div>
               </div>
+              {isAdmin && (
+                <div className="flex justify-end">
+                  <Button
+                    variant="destructive"
+                    onClick={handleDelete}
+                    disabled={deleteCourse.isPending}
+                    className="flex align-items-center my-1 mt-8"
+                    title="حذف الدورة"
+                  >
+                    {deleteCourse.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <p className="flex align-items-center gap-2"> <Trash2 className="w-4 h-4" /> حذف الدورة </p>
+                    )}
+                  </Button>
+                </div>
+              )}
 
               {/* Create Student Dialog */}
               <Dialog open={createStudentDialogOpen} onOpenChange={setCreateStudentDialogOpen}>
