@@ -13,17 +13,17 @@
     --popover: 0 0% 100%;
     --popover-foreground: 215 28% 12%;
 
-    --primary: 195 85% 28%;
+    --primary: 346 66% 37%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 18% 94%;
-    --secondary-foreground: 215 28% 17%;
+    --secondary: 27 43% 67%;
+    --secondary-foreground: 215 28% 12%;
 
     --muted: 210 14% 95%;
     --muted-foreground: 215 14% 50%;
 
-    --accent: 195 60% 92%;
-    --accent-foreground: 195 85% 22%;
+    --accent: 27 43% 90%;
+    --accent-foreground: 215 28% 12%;
 
     --destructive: 0 65% 55%;
     --destructive-foreground: 0 0% 100%;
@@ -36,18 +36,18 @@
 
     --border: 210 16% 90%;
     --input: 210 16% 90%;
-    --ring: 195 85% 28%;
+    --ring: 346 66% 37%;
 
     --radius: 0.625rem;
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 215 20% 30%;
-    --sidebar-primary: 195 85% 28%;
+    --sidebar-primary: 346 66% 37%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 195 60% 95%;
-    --sidebar-accent-foreground: 195 85% 22%;
+    --sidebar-accent: 27 43% 90%;
+    --sidebar-accent-foreground: 215 28% 12%;
     --sidebar-border: 210 16% 92%;
-    --sidebar-ring: 195 85% 28%;
+    --sidebar-ring: 346 66% 37%;
 
     /* Course tag colors */
     --course-teal: 195 70% 90%;
@@ -63,28 +63,28 @@
   }
 
   .dark {
-    --background: 215 28% 8%;
-    --foreground: 210 20% 95%;
+    --background: 346 40% 6%;
+    --foreground: 27 10% 90%;
 
-    --card: 215 25% 11%;
-    --card-foreground: 210 20% 95%;
+    --card: 346 30% 8%;
+    --card-foreground: 27 10% 90%;
 
-    --popover: 215 25% 11%;
-    --popover-foreground: 210 20% 95%;
+    --popover: 346 30% 8%;
+    --popover-foreground: 27 10% 90%;
 
-    --primary: 195 70% 45%;
+    --primary: 346 66% 55%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 215 20% 18%;
-    --secondary-foreground: 210 20% 90%;
+    --secondary: 27 30% 20%;
+    --secondary-foreground: 0 0% 90%;
 
-    --muted: 215 20% 16%;
-    --muted-foreground: 215 14% 55%;
+    --muted: 27 20% 16%;
+    --muted-foreground: 27 10% 60%;
 
-    --accent: 195 50% 18%;
-    --accent-foreground: 195 60% 80%;
+    --accent: 27 30% 20%;
+    --accent-foreground: 0 0% 90%;
 
-    --destructive: 0 62% 40%;
+    --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 100%;
 
     --success: 152 50% 35%;
@@ -93,18 +93,18 @@
     --warning: 38 80% 42%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 215 20% 18%;
-    --input: 215 20% 18%;
-    --ring: 195 70% 45%;
+    --border: 27 20% 18%;
+    --input: 27 20% 18%;
+    --ring: 346 66% 55%;
 
-    --sidebar-background: 215 28% 10%;
-    --sidebar-foreground: 210 15% 80%;
-    --sidebar-primary: 195 70% 45%;
+    --sidebar-background: 346 30% 8%;
+    --sidebar-foreground: 27 10% 80%;
+    --sidebar-primary: 346 66% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 195 40% 15%;
-    --sidebar-accent-foreground: 195 60% 80%;
-    --sidebar-border: 215 20% 16%;
-    --sidebar-ring: 195 70% 45%;
+    --sidebar-accent: 27 30% 20%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 27 20% 18%;
+    --sidebar-ring: 346 66% 55%;
   }
 }
 
@@ -117,7 +117,12 @@
     @apply bg-background text-foreground font-cairo antialiased;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-cairo font-bold;
   }
 }
@@ -131,18 +136,22 @@
     background-color: hsl(var(--course-teal));
     color: hsl(var(--course-teal-fg));
   }
+
   .course-tag-blue {
     background-color: hsl(var(--course-blue));
     color: hsl(var(--course-blue-fg));
   }
+
   .course-tag-amber {
     background-color: hsl(var(--course-amber));
     color: hsl(var(--course-amber-fg));
   }
+
   .course-tag-rose {
     background-color: hsl(var(--course-rose));
     color: hsl(var(--course-rose-fg));
   }
+
   .course-tag-violet {
     background-color: hsl(var(--course-violet));
     color: hsl(var(--course-violet-fg));
@@ -151,9 +160,11 @@
   .status-present {
     color: hsl(var(--success));
   }
+
   .status-absent {
     color: hsl(var(--destructive));
   }
+
   .status-unmarked {
     color: hsl(var(--warning));
   }

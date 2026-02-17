@@ -61,8 +61,12 @@ export default function Login() {
       <div className="w-full max-w-md animate-fade-in">
         {/* Logo / Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary mb-4">
-            <BookOpen className="w-8 h-8 text-primary-foreground" />
+          <div className="inline-flex items-center justify-center mb-4">
+            <img
+              src="/logo.png"
+              alt="Logo"
+              className="w-24 h-24 object-contain"
+            />
           </div>
           <h1 className="text-2xl font-bold text-foreground">مدرسة موال</h1>
           <p className="text-muted-foreground mt-1">منصة الحضور والغياب</p>

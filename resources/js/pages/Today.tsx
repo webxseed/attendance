@@ -76,7 +76,7 @@ export default function Today() {
         <div className="page-header mb-0">
           <h1 className="page-title flex items-center gap-2 ms-4">
             <CalendarDays className="w-6 h-6 text-primary" />
-            لوحة اليوم
+            {new Date().getFullYear()} مدرسة موال
           </h1>
           <p className="page-subtitle">
             {formattedDate} • {isAdmin ? "عرض المدير" : "عرض المعلم"}
@@ -84,7 +84,8 @@ export default function Today() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
+
+          {/* <Button
             variant="outline"
             size="sm"
             className="gap-1.5"
@@ -101,7 +102,7 @@ export default function Today() {
               onChange={(e) => setSearch(e.target.value)}
               className="ps-9 h-9 w-48"
             />
-          </div>
+          </div> */}
         </div>
       </div>
 

@@ -46,9 +46,11 @@ export default function AppSidebar() {
       {/* Brand */}
       <div className="p-5 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
-            <CalendarDays className="w-5 h-5 text-primary-foreground" />
-          </div>
+          <img
+            src="/logo.png"
+            alt="Logo"
+            className="w-10 h-10 object-contain"
+          />
           <div className="min-w-0">
             <h2 className="font-bold text-sm text-sidebar-foreground truncate">
               مدرسة موال

@@ -11,7 +11,9 @@ import {
   useRemoveTeacher,
   useAssignStudent,
   useRemoveStudent,
+  useCreateStudent,
 } from "@/hooks/useApi";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +39,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
+import {
   BookOpen,
   Plus,
   Search,
@@ -45,6 +62,9 @@ import {
   Loader2,
   X,
   UserPlus,
+  Check,
+  ChevronsUpDown,
+  Pencil,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -460,6 +480,68 @@ function CourseManageSheet({
   // Local select values
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>("");
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
+
+  // Student autocomplete & create state
+  const [studentComboOpen, setStudentComboOpen] = useState(false);
+  const [createStudentDialogOpen, setCreateStudentDialogOpen] = useState(false);
+  const createStudentMutation = useCreateStudent();
+
+  const [newStudentData, setNewStudentData] = useState({
+    full_name: "",
+    identity_number: "",
+    date_of_birth: "",
+    grade_level: "",
+    school_name: "",
+    address: "",
+    mother_name: "",
+    mother_phone: "",
+    father_name: "",
+    father_phone: "",
+    notes: "",
+  });
+
+  const resetNewStudentForm = () => {
+    setNewStudentData({
+      full_name: "",
+      identity_number: "",
+      date_of_birth: "",
+      grade_level: "",
+      school_name: "",
+      address: "",
+      mother_name: "",
+      mother_phone: "",
+      father_name: "",
+      father_phone: "",
+      notes: "",
+    });
+  };
+
+  const handleCreateStudent = () => {
+    if (!newStudentData.full_name.trim()) return;
+    createStudentMutation.mutate(
+      {
+        ...newStudentData,
+        date_of_birth: newStudentData.date_of_birth || undefined,
+      },
+      {
+        onSuccess: (student) => {
+          toast({ title: "تمت الإضافة", description: "تم إنشاء الطالب بنجاح" });
+          setCreateStudentDialogOpen(false);
+          resetNewStudentForm();
+          // Automatically assign
+          assignStudent.mutate({ courseId, studentId: student.id }, {
+            onSuccess: () => toast({ title: "تم التسجيل", description: "تم تسجيل الطالب في الدورة" })
+          });
+        },
+        onError: (err: any) => {
+          toast({
+            title: "خطأ",
+            description: err.response?.data?.message || "تعذّر انشاء الطالب",
+            variant: "destructive"
+          });
+        }
+      });
+  };
 
   if (!open || !courseId) return null;
 
@@ -906,8 +988,8 @@ function CourseManageSheet({
                 </p>
               )}
 
-              {/* Add student */}
-              {availableStudents.length > 0 && (
+              {/* Add student - Autocomplete & Create */}
+              <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
@@ -922,23 +1004,205 @@ function CourseManageSheet({
                     )}
                     تسجيل
                   </Button>
-                  <Select
-                    value={selectedStudentId}
-                    onValueChange={setSelectedStudentId}
-                  >
-                    <SelectTrigger className="flex-1 text-start">
-                      <SelectValue placeholder="اختر طالباً..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableStudents.map((s) => (
-                        <SelectItem key={s.id} value={String(s.id)}>
-                          {s.full_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+
+                  <Popover open={studentComboOpen} onOpenChange={setStudentComboOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={studentComboOpen}
+                        className="flex-1 justify-between text-start font-normal h-9 px-3"
+                      >
+                        {selectedStudentId
+                          ? availableStudents.find((s) => String(s.id) === selectedStudentId)?.full_name
+                          : "اختر طالباً..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="بحث عن طالب..." />
+                        <CommandList>
+                          <CommandEmpty>لم يتم العثور على طالب.</CommandEmpty>
+                          <CommandGroup>
+                            {availableStudents.map((student) => (
+                              <CommandItem
+                                key={student.id}
+                                value={student.full_name}
+                                onSelect={() => {
+                                  setSelectedStudentId(String(student.id) === selectedStudentId ? "" : String(student.id));
+                                  setStudentComboOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selectedStudentId === String(student.id) ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {student.full_name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                          <CommandSeparator />
+                          <CommandGroup>
+                            <CommandItem
+                              onSelect={() => {
+                                setStudentComboOpen(false);
+                                setCreateStudentDialogOpen(true);
+                              }}
+                              className="text-primary cursor-pointer font-medium"
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              إضافة طالب جديد
+                            </CommandItem>
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
-              )}
+              </div>
+
+              {/* Create Student Dialog */}
+              <Dialog open={createStudentDialogOpen} onOpenChange={setCreateStudentDialogOpen}>
+                <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>إضافة طالب جديد</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>اسم الطالب <span className="text-destructive">*</span></Label>
+                        <Input
+                          placeholder="الاسم الكامل"
+                          value={newStudentData.full_name}
+                          onChange={(e) => setNewStudentData({ ...newStudentData, full_name: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>رقم الهوية</Label>
+                        <Input
+                          placeholder="رقم الهوية"
+                          value={newStudentData.identity_number}
+                          onChange={(e) => setNewStudentData({ ...newStudentData, identity_number: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>تاريخ الميلاد</Label>
+                        <Input
+                          type="date"
+                          value={newStudentData.date_of_birth}
+                          onChange={(e) => setNewStudentData({ ...newStudentData, date_of_birth: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>الصف</Label>
+                        <Input
+                          placeholder="مثال: الخامس أ"
+                          value={newStudentData.grade_level}
+                          onChange={(e) => setNewStudentData({ ...newStudentData, grade_level: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>المدرسة</Label>
+                        <Input
+                          placeholder="اسم المدرسة"
+                          value={newStudentData.school_name}
+                          onChange={(e) => setNewStudentData({ ...newStudentData, school_name: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>العنوان</Label>
+                        <Input
+                          placeholder="المدينة / الشارع"
+                          value={newStudentData.address}
+                          onChange={(e) => setNewStudentData({ ...newStudentData, address: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-2 mt-2">
+                      <h3 className="font-semibold text-sm mb-3">بيانات الوالدين</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                        <div className="space-y-2">
+                          <Label>اسم الأم</Label>
+                          <Input
+                            placeholder="اسم الأم"
+                            value={newStudentData.mother_name}
+                            onChange={(e) => setNewStudentData({ ...newStudentData, mother_name: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>هاتف الأم</Label>
+                          <Input
+                            placeholder="05XXXXXXXX"
+                            value={newStudentData.mother_phone}
+                            onChange={(e) => setNewStudentData({ ...newStudentData, mother_phone: e.target.value })}
+                            dir="ltr"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>اسم الأب</Label>
+                          <Input
+                            placeholder="اسم الأب"
+                            value={newStudentData.father_name}
+                            onChange={(e) => setNewStudentData({ ...newStudentData, father_name: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>هاتف الأب</Label>
+                          <Input
+                            placeholder="05XXXXXXXX"
+                            value={newStudentData.father_phone}
+                            onChange={(e) => setNewStudentData({ ...newStudentData, father_phone: e.target.value })}
+                            dir="ltr"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>ملاحظات</Label>
+                      <Textarea
+                        placeholder="ملاحظات إضافية ..."
+                        value={newStudentData.notes}
+                        onChange={(e) => setNewStudentData({ ...newStudentData, notes: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setCreateStudentDialogOpen(false)}
+                        className="flex-1"
+                      >
+                        إلغاء
+                      </Button>
+                      <Button
+                        onClick={handleCreateStudent}
+                        className="flex-1"
+                        disabled={createStudentMutation.isPending || !newStudentData.full_name.trim()}
+                      >
+                        {createStudentMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          "حفظ وإضافة"
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         )}

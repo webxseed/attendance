@@ -9,9 +9,8 @@ interface SummaryCardsProps {
 
 const cards = [
   { key: "total", label: "إجمالي الطلاب", icon: Users, colorClass: "text-primary" },
-  { key: "present", label: "حاضر", icon: CheckCircle2, colorClass: "text-success" },
-  { key: "absent", label: "غائب", icon: XCircle, colorClass: "text-destructive" },
-  { key: "unmarked", label: "غير مُسجّل", icon: Clock, colorClass: "text-warning" },
+  { key: "present", label: "عدد الحضور", icon: CheckCircle2, colorClass: "text-success" },
+  { key: "absent", label: "عدد الغياب", icon: XCircle, colorClass: "text-destructive" },
 ] as const;
 
 export default function SummaryCards({ total, present, absent, unmarked }: SummaryCardsProps) {
