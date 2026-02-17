@@ -86,14 +86,23 @@ export default function Today() {
 
             return (
               <div key={year.id} className="space-y-4">
-                <div className="flex items-center justify-between border-b pb-2">
-                  <h2 className="text-xl font-bold text-primary flex items-center gap-2">
+                <div className="border-b pb-3 relative">
+                  <div className="flex items-center gap-2">
                     <CalendarDays className="w-6 h-6 text-primary" />
-                    {year.title && year.start_year && year.end_year
-                      ? `مدرسة موال ${year.title}, ${year.start_year}-${year.end_year}`
-                      : year.name}
-                  </h2>
+                    <h1 className="text-2xl font-extrabold text-primary">مدرسة موال</h1>
+                  </div>
+
+                  {(year.start_year && year.end_year) && (
+                    <p className=" font-semibold text-gray-700 mt-2">
+                      السنة الدراسية {year.start_year}-{year.end_year}
+                    </p>
+                  )}
+
+                  <h3 className="text-base font-medium text-gray-600">
+                    {year.title}
+                  </h3>
                 </div>
+
 
                 {/* render yearCourses here */}
               </div>

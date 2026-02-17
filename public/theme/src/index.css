@@ -174,7 +174,7 @@
   }
 
   .page-header {
-    @apply mb-2;
+    @apply mb-2 lg:mb-0;
   }
 
   .page-title {

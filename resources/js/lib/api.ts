@@ -201,6 +201,11 @@ export const yearsApi = {
   list: () => api.get<Year[]>("/years"),
   create: (data: { title: string; start_year: string; end_year: string }) =>
     api.post<Year>("/years", data),
+
+  update: (
+    id: number,
+    data: { title: string; start_year: string; end_year: string }
+  ) => api.put<Year>(`/years/${id}`, data),
 };
 
 // ---------------------------------------------------------------------------

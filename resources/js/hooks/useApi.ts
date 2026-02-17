@@ -39,6 +39,20 @@ export function useCreateYear() {
   });
 }
 
+export function useUpdateYear() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: { title: string; start_year: string; end_year: string };
+    }) => yearsApi.update(id, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["years"] }),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Courses
 // ---------------------------------------------------------------------------
