@@ -62,7 +62,7 @@ export interface Course {
   color: string | null;
   description: string | null;
   year?: number | null;
-  schedule_details?: { day: string; time: string; note: string }[] | null;
+  schedule_details?: { day: string; from_time: string; to_time: string; note: string }[] | null;
   students_count?: number;
   teachers_count?: number;
   teachers?: Teacher[];
@@ -240,7 +240,6 @@ export const teachersApi = {
   create: (data: {
     name: string;
     email: string;
-    password: string;
     phone?: string;
   }) => api.post<Teacher>("/teachers", data),
 
@@ -249,7 +248,6 @@ export const teachersApi = {
     data: {
       name?: string;
       email?: string;
-      password?: string;
       phone?: string;
     }
   ) => api.put<Teacher>(`/teachers/${id}`, data),

@@ -86,8 +86,8 @@ export default function Reports() {
             const rate =
               item.total_students > 0
                 ? Math.round(
-                    (item.present_count / item.total_students) * 100
-                  )
+                  (item.present_count / item.total_students) * 100
+                )
                 : 0;
             return (
               <div key={item.course_id} className="stat-card animate-fade-in">
@@ -102,22 +102,15 @@ export default function Reports() {
                     <p className="text-2xl font-bold text-success">
                       {item.present_count}
                     </p>
-                    <p className="text-xs text-muted-foreground">حاضر</p>
+                    <p className="text-xs text-muted-foreground">عدد الحضور</p>
                   </div>
                   <div>
                     <p className="text-2xl font-bold text-destructive">
                       {item.absent_count}
                     </p>
-                    <p className="text-xs text-muted-foreground">غائب</p>
+                    <p className="text-xs text-muted-foreground">عدد الغياب</p>
                   </div>
-                  <div>
-                    <p className="text-2xl font-bold text-warning">
-                      {item.not_marked_count}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      غير مسجّل
-                    </p>
-                  </div>
+
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-sm">

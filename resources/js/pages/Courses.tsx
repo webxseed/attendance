@@ -68,7 +68,7 @@ export default function Courses() {
   const [description, setDescription] = useState("");
   const [year, setYear] = useState<string>("");
   const [scheduleDetails, setScheduleDetails] = useState<
-    { day: string; time: string; note: string }[]
+    { day: string; from_time: string; to_time: string; note: string }[]
   >([]);
 
   // API – list
@@ -89,7 +89,7 @@ export default function Courses() {
   };
 
   const addScheduleItem = () => {
-    setScheduleDetails([...scheduleDetails, { day: "Sunday", time: "10:00", note: "" }]);
+    setScheduleDetails([...scheduleDetails, { day: "Sunday", from_time: "10:00", to_time: "12:00", note: "" }]);
   };
 
   const removeScheduleItem = (index: number) => {
@@ -184,7 +184,7 @@ export default function Courses() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>الوصف</Label>
+                <Label>من جيل الى جيل</Label>
                 <Input
                   placeholder="وصف مختصر (اختياري)"
                   value={description}
@@ -234,22 +234,37 @@ export default function Courses() {
                           )}
                         </SelectContent>
                       </Select>
-                      <Input
-                        type="time"
-                        className="w-[100px]"
-                        value={item.time}
-                        onChange={(e) => updateScheduleItem(index, "time", e.target.value)}
-                      />
-                      <Input
-                        placeholder="ملاحظة (مثل:،)"
-                        className="flex-1"
-                        value={item.note}
-                        onChange={(e) => updateScheduleItem(index, "note", e.target.value)}
-                      />
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] text-muted-foreground">من</span>
+                        <Input
+                          type="time"
+                          className="w-[90px] h-8 text-xs"
+                          value={item.from_time}
+                          onChange={(e) => updateScheduleItem(index, "from_time", e.target.value)}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] text-muted-foreground">إلى</span>
+                        <Input
+                          type="time"
+                          className="w-[90px] h-8 text-xs"
+                          value={item.to_time}
+                          onChange={(e) => updateScheduleItem(index, "to_time", e.target.value)}
+                        />
+                      </div>
+                      <div className="flex-1 flex flex-col gap-1">
+                        <span className="text-[10px] text-muted-foreground">&nbsp;</span>
+                        <Input
+                          placeholder="ملاحظة"
+                          className="h-8 text-xs"
+                          value={item.note}
+                          onChange={(e) => updateScheduleItem(index, "note", e.target.value)}
+                        />
+                      </div>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-10 w-10 text-destructive"
+                        className="h-8 w-8 text-destructive mt-[18px]"
                         onClick={() => removeScheduleItem(index)}
                       >
                         <X className="w-4 h-4" />
@@ -421,7 +436,7 @@ function CourseManageSheet({
   const [description, setDescription] = useState("");
   const [year, setYear] = useState("");
   const [scheduleDetails, setScheduleDetails] = useState<
-    { day: string; time: string; note: string }[]
+    { day: string; from_time: string; to_time: string; note: string }[]
   >([]);
 
   // Sync edit form state when course is loaded
@@ -431,7 +446,14 @@ function CourseManageSheet({
       setColor(course.color || "teal");
       setDescription(course.description || "");
       setYear(course.year?.toString() || "");
-      setScheduleDetails(course.schedule_details || []);
+      setScheduleDetails(
+        (course.schedule_details || []).map((d: any) => ({
+          day: d.day,
+          from_time: d.from_time || d.time || "10:00",
+          to_time: d.to_time || "12:00",
+          note: d.note || "",
+        }))
+      );
     }
   }, [course, isEditing]);
 
@@ -470,7 +492,7 @@ function CourseManageSheet({
   };
 
   const addScheduleItem = () => {
-    setScheduleDetails([...scheduleDetails, { day: "Sunday", time: "10:00", note: "" }]);
+    setScheduleDetails([...scheduleDetails, { day: "Sunday", from_time: "10:00", to_time: "12:00", note: "" }]);
   };
 
   const removeScheduleItem = (index: number) => {
@@ -649,7 +671,7 @@ function CourseManageSheet({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>الوصف</Label>
+                  <Label>من جيل الى جيل</Label>
                   <Input
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
@@ -695,22 +717,37 @@ function CourseManageSheet({
                             )}
                           </SelectContent>
                         </Select>
-                        <Input
-                          type="time"
-                          className="w-[100px]"
-                          value={item.time}
-                          onChange={(e) => updateScheduleItem(index, "time", e.target.value)}
-                        />
-                        <Input
-                          placeholder="ملاحظة"
-                          className="flex-1"
-                          value={item.note}
-                          onChange={(e) => updateScheduleItem(index, "note", e.target.value)}
-                        />
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-muted-foreground">من</span>
+                          <Input
+                            type="time"
+                            className="w-[90px] h-8 text-xs"
+                            value={item.from_time}
+                            onChange={(e) => updateScheduleItem(index, "from_time", e.target.value)}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] text-muted-foreground">إلى</span>
+                          <Input
+                            type="time"
+                            className="w-[90px] h-8 text-xs"
+                            value={item.to_time}
+                            onChange={(e) => updateScheduleItem(index, "to_time", e.target.value)}
+                          />
+                        </div>
+                        <div className="flex-1 flex flex-col gap-1">
+                          <span className="text-[10px] text-muted-foreground">&nbsp;</span>
+                          <Input
+                            placeholder="ملاحظة"
+                            className="h-8 text-xs"
+                            value={item.note}
+                            onChange={(e) => updateScheduleItem(index, "note", e.target.value)}
+                          />
+                        </div>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-10 w-10 text-destructive"
+                          className="h-8 w-8 text-destructive mt-[18px]"
                           onClick={() => removeScheduleItem(index)}
                         >
                           <X className="w-4 h-4" />

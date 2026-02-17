@@ -23,7 +23,6 @@ export default function Teachers() {
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
 
   // API
@@ -44,7 +43,6 @@ export default function Teachers() {
     setEditingTeacher(null);
     setName("");
     setEmail("");
-    setPassword("");
     setPhone("");
   };
 
@@ -52,7 +50,6 @@ export default function Teachers() {
     setEditingTeacher(teacher);
     setName(teacher.user?.name ?? "");
     setEmail(teacher.user?.email ?? "");
-    setPassword(""); // Leave empty to keep existing
     setPhone(teacher.phone ?? "");
     setDialogOpen(true);
   };
@@ -60,14 +57,13 @@ export default function Teachers() {
   const handleSubmit = () => {
     if (editingTeacher) {
       // Update
-      if (!name.trim() || !email.trim()) return;
+      if (!name.trim()) return;
       updateMutation.mutate(
         {
           id: editingTeacher.id,
           data: {
             name: name.trim(),
             email: email.trim(),
-            password: password ? password : undefined,
             phone: phone.trim() || undefined,
           },
         },
@@ -92,12 +88,11 @@ export default function Teachers() {
       );
     } else {
       // Create
-      if (!name.trim() || !email.trim() || !password.trim()) return;
+      if (!name.trim()) return;
       createMutation.mutate(
         {
           name: name.trim(),
           email: email.trim(),
-          password,
           phone: phone.trim() || undefined,
         },
         {
@@ -159,27 +154,6 @@ export default function Teachers() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>البريد الإلكتروني</Label>
-                <Input
-                  type="email"
-                  placeholder="example@mowal.edu"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>
-                  كلمة المرور
-                  {editingTeacher && <span className="text-xs text-muted-foreground font-normal"> (اتركها فارغة للإبقاء على الحالية)</span>}
-                </Label>
-                <Input
-                  type="password"
-                  placeholder={editingTeacher ? "********" : "كلمة مرور (8 أحرف على الأقل)"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
                 <Label>رقم الهاتف</Label>
                 <Input
                   placeholder="05XXXXXXXX (اختياري)"
@@ -203,9 +177,7 @@ export default function Teachers() {
                   className="flex-1"
                   disabled={
                     (editingTeacher ? updateMutation.isPending : createMutation.isPending) ||
-                    !name.trim() ||
-                    !email.trim() ||
-                    (!editingTeacher && !password.trim())
+                    !name.trim()
                   }
                 >
                   {createMutation.isPending || updateMutation.isPending ? (

@@ -145,7 +145,6 @@ export function useCreateTeacher() {
     mutationFn: (data: {
       name: string;
       email: string;
-      password: string;
       phone?: string;
     }) => teachersApi.create(data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["teachers"] }),
@@ -163,7 +162,6 @@ export function useUpdateTeacher() {
       data: {
         name?: string;
         email?: string;
-        password?: string;
         phone?: string;
       };
     }) => teachersApi.update(id, data).then((r) => r.data),
@@ -192,6 +190,15 @@ export function useCreateStudent() {
       full_name: string;
       external_code?: string;
       notes?: string;
+      date_of_birth?: string;
+      identity_number?: string;
+      grade_level?: string;
+      school_name?: string;
+      address?: string;
+      mother_name?: string;
+      mother_phone?: string;
+      father_name?: string;
+      father_phone?: string;
     }) => studentsApi.create(data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["students"] }),
   });
@@ -209,6 +216,15 @@ export function useUpdateStudent() {
         full_name?: string;
         external_code?: string;
         notes?: string;
+        date_of_birth?: string;
+        identity_number?: string;
+        grade_level?: string;
+        school_name?: string;
+        address?: string;
+        mother_name?: string;
+        mother_phone?: string;
+        father_name?: string;
+        father_phone?: string;
       };
     }) => studentsApi.update(id, data).then((r) => r.data),
     onSuccess: (_data, { id }) => {

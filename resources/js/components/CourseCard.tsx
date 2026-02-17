@@ -6,9 +6,10 @@ interface CourseCardProps {
   course: Course;
   stats?: CourseStats;
   onClick: () => void;
+  selectedDate?: string;
 }
 
-export default function CourseCard({ course, stats, onClick }: CourseCardProps) {
+export default function CourseCard({ course, stats, onClick, selectedDate }: CourseCardProps) {
   const colorTag = toColorTag(course.color);
 
   const total = stats?.total ?? course.students_count ?? 0;
@@ -18,10 +19,17 @@ export default function CourseCard({ course, stats, onClick }: CourseCardProps) 
   const marked = present + absent;
   const completionPct = total > 0 ? Math.round((marked / total) * 100) : 0;
 
+  // Check if course is scheduled for the selected date
+  const dayName = selectedDate
+    ? new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long" })
+    : "";
+  const todaySchedule = course.schedule_details?.find((s) => s.day === dayName);
+
   return (
     <button
       onClick={onClick}
-      className="stat-card text-start w-full animate-fade-in hover:border-primary/30 transition-all group"
+      className={`stat-card text-start w-full animate-fade-in hover:border-primary/30 transition-all group ${todaySchedule ? "bg-primary/5 border-primary/40 ring-1 ring-primary/20" : ""
+        }`}
     >
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
@@ -38,10 +46,15 @@ export default function CourseCard({ course, stats, onClick }: CourseCardProps) 
       </div>
 
       {/* Color indicator */}
-      <div className="flex items-center gap-1.5 mb-4">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
         <span className={`course-tag course-tag-${colorTag}`}>
           {course.description || course.title}
         </span>
+        {todaySchedule && (todaySchedule.from_time || todaySchedule.to_time) && (
+          <span className="text-[10px] bg-background/80 px-1.5 py-0.5 rounded border text-muted-foreground dir-ltr">
+            {todaySchedule.from_time || "???"} - {todaySchedule.to_time || "???"}
+          </span>
+        )}
       </div>
 
       {/* Stats row */}

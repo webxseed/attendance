@@ -132,6 +132,7 @@ export default function Today() {
               course={course}
               stats={statsMap[course.id]}
               onClick={() => openDrawer(course)}
+              selectedDate={selectedDate}
             />
           ))}
         </div>
