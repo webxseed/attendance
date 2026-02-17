@@ -143,4 +143,18 @@ class CourseController extends Controller
 
         return response()->json(['message' => 'Student unassigned']);
     }
+
+    /**
+     * Delete course (Admin only).
+     */
+    public function destroy(Request $request, Course $course)
+    {
+        if (!$request->user()->isAdmin()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $course->delete();
+
+        return response()->json(['message' => 'Course deleted successfully']);
+    }
 }
