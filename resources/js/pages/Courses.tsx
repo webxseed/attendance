@@ -637,7 +637,7 @@ function CourseManageSheet({
     mother_phone: "",
     father_name: "",
     father_phone: "",
-    notes: "",
+    notes: "Active student",
   });
 
   const resetNewStudentForm = () => {
@@ -652,7 +652,7 @@ function CourseManageSheet({
       mother_phone: "",
       father_name: "",
       father_phone: "",
-      notes: "",
+      notes: "Active student",
     });
   };
 
