@@ -300,6 +300,7 @@ export const teachersApi = {
 
 export const studentsApi = {
   list: () => api.get<PaginatedResponse<Student>>("/students"),
+  listAll: () => api.get<Student[]>("/students?all=true"),
 
   show: (id: number) => api.get<Student>(`/students/${id}`),
 

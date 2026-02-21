@@ -225,6 +225,13 @@ export function useStudents() {
   });
 }
 
+export function useAllStudents() {
+  return useQuery({
+    queryKey: ["all-students"],
+    queryFn: () => studentsApi.listAll().then((r) => r.data),
+  });
+}
+
 export function useCreateStudent() {
   const qc = useQueryClient();
   return useMutation({
@@ -242,7 +249,10 @@ export function useCreateStudent() {
       father_name?: string;
       father_phone?: string;
     }) => studentsApi.create(data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["students"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["students"] });
+      qc.invalidateQueries({ queryKey: ["all-students"] });
+    },
   });
 }
 
@@ -272,6 +282,7 @@ export function useUpdateStudent() {
     onSuccess: (_data, { id }) => {
       qc.invalidateQueries({ queryKey: ["students", id] });
       qc.invalidateQueries({ queryKey: ["students"] });
+      qc.invalidateQueries({ queryKey: ["all-students"] });
     },
   });
 }

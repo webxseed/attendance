@@ -15,6 +15,10 @@ class StudentController extends Controller
     {
         if (!$request->user()->isAdmin()) return response()->json(['message' => 'Unauthorized'], 403);
 
+        if ($request->query('all')) {
+            return Student::orderBy('full_name')->get();
+        }
+
         return Student::paginate(20);
     }
 

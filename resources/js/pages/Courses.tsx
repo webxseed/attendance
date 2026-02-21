@@ -7,7 +7,7 @@ import {
   useCreateCourse,
   useUpdateCourse,
   useTeachers,
-  useStudents,
+  useAllStudents,
   useAssignTeacher,
   useRemoveTeacher,
   useAssignStudent,
@@ -545,9 +545,9 @@ function CourseManageSheet({
 
   // Fetch all teachers & students for the "add" selects
   const { data: allTeachersPage } = useTeachers();
-  const { data: allStudentsPage } = useStudents();
+  const { data: allStudentsData } = useAllStudents();
   const allTeachers = allTeachersPage?.data ?? [];
-  const allStudents = allStudentsPage?.data ?? [];
+  const allStudents = allStudentsData ?? [];
 
   // Mutations
   const assignTeacher = useAssignTeacher();
@@ -1251,7 +1251,20 @@ function CourseManageSheet({
                     <PopoverContent className="w-[300px] p-0" align="start">
                       <Command>
                         <CommandInput placeholder="بحث عن طالب..." />
-                        <CommandList>
+                        <CommandList className="max-h-[250px] overflow-y-auto">
+                          <CommandGroup>
+                            <CommandItem
+                              onSelect={() => {
+                                setStudentComboOpen(false);
+                                setCreateStudentDialogOpen(true);
+                              }}
+                              className="text-primary cursor-pointer font-medium"
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              إضافة طالب جديد
+                            </CommandItem>
+                          </CommandGroup>
+                          <CommandSeparator />
                           <CommandEmpty>لم يتم العثور على طالب.</CommandEmpty>
                           <CommandGroup>
                             {availableStudents.map((student) => (
@@ -1272,19 +1285,6 @@ function CourseManageSheet({
                                 {student.full_name}
                               </CommandItem>
                             ))}
-                          </CommandGroup>
-                          <CommandSeparator />
-                          <CommandGroup>
-                            <CommandItem
-                              onSelect={() => {
-                                setStudentComboOpen(false);
-                                setCreateStudentDialogOpen(true);
-                              }}
-                              className="text-primary cursor-pointer font-medium"
-                            >
-                              <Plus className="mr-2 h-4 w-4" />
-                              إضافة طالب جديد
-                            </CommandItem>
                           </CommandGroup>
                         </CommandList>
                       </Command>
