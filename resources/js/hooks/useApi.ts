@@ -287,6 +287,17 @@ export function useUpdateStudent() {
   });
 }
 
+export function useDeleteStudent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => studentsApi.destroy(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["students"] });
+      qc.invalidateQueries({ queryKey: ["all-students"] });
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Attendance
 // ---------------------------------------------------------------------------

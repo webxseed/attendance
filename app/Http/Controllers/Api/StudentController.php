@@ -85,4 +85,22 @@ class StudentController extends Controller
 
         return response()->json($student);
     }
+
+    /**
+     * Delete student. (Admin only)
+     */
+    public function destroy(Request $request, Student $student)
+    {
+        if (!$request->user()->isAdmin()) return response()->json(['message' => 'Unauthorized'], 403);
+
+        // Detach from courses
+        $student->courses()->detach();
+
+        // Delete attendance records
+        $student->attendanceRecords()->delete();
+
+        $student->delete();
+
+        return response()->json(['message' => 'تم حذف الطالب بنجاح']);
+    }
 }

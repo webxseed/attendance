@@ -336,6 +336,8 @@ export const studentsApi = {
       father_phone?: string;
     }
   ) => api.put<Student>(`/students/${id}`, data),
+
+  destroy: (id: number) => api.delete(`/students/${id}`),
 };
 
 // ---------------------------------------------------------------------------

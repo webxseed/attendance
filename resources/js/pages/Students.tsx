@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useStudents, useCreateStudent, useUpdateStudent } from "@/hooks/useApi";
+import { useAllStudents, useCreateStudent, useUpdateStudent, useDeleteStudent } from "@/hooks/useApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { GraduationCap, Plus, Search, Loader2, Pencil } from "lucide-react";
+import { GraduationCap, Plus, Search, Loader2, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Student } from "@/lib/api";
 
@@ -38,10 +38,11 @@ export default function Students() {
   const [fatherPhone, setFatherPhone] = useState("");
 
   // API
-  const { data: studentsPage, isLoading } = useStudents();
+  const { data: allStudentsData, isLoading } = useAllStudents();
   const createMutation = useCreateStudent();
   const updateMutation = useUpdateStudent();
-  const students = studentsPage?.data ?? [];
+  const deleteMutation = useDeleteStudent();
+  const students = allStudentsData ?? [];
 
   const filtered = search
     ? students.filter((s) => s.full_name.includes(search))
@@ -144,6 +145,22 @@ export default function Students() {
         }
       );
     }
+  };
+
+  const handleDelete = (student: Student) => {
+    if (!confirm(`هل أنت متأكد من حذف الطالب "${student.full_name}"؟ سيتم حذف جميع سجلات الحضور الخاصة به.`)) return;
+    deleteMutation.mutate(student.id, {
+      onSuccess: () => {
+        toast({ title: "تم الحذف", description: "تم حذف الطالب بنجاح" });
+      },
+      onError: (err: any) => {
+        toast({
+          title: "خطأ",
+          description: err.response?.data?.message || "تعذّر حذف الطالب",
+          variant: "destructive",
+        });
+      },
+    });
   };
 
   return (
@@ -353,14 +370,25 @@ export default function Students() {
               key={student.id}
               className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-4 px-5 py-3 border-b last:border-b-0 hover:bg-muted/20 transition-colors items-center"
             >
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground"
-                onClick={() => handleEdit(student)}
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground"
+                  onClick={() => handleEdit(student)}
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                  onClick={() => handleDelete(student)}
+                  disabled={deleteMutation.isPending}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
 
               <div className="flex flex-col">
                 <span className="font-medium text-sm">{student.full_name}</span>
