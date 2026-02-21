@@ -98,7 +98,7 @@ class AttendanceController extends Controller
             'records.*.note' => 'nullable|string',
         ]);
 
-        DB::transaction(function () use ($session, $validated, $user) {
+        DB::transaction(function () use ($session, $validated, $user, $request) {
             foreach ($validated['records'] as $recordData) {
                 AttendanceRecord::updateOrCreate(
                     [
