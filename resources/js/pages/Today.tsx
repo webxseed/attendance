@@ -75,9 +75,9 @@ export default function Today() {
   const coursesWithoutYear = filteredCourses.filter((c) => !c.year_id);
 
   return (
-    <div className="space-y-6 pb-20 lg:pb-8">
+    <div className="space-y-2 pb-20 lg:pb-8">
       {/* Top bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-center gap-4 text-center">
         <div className="page-header mb-0">
 
           {allYears.map((year) => {
@@ -88,7 +88,11 @@ export default function Today() {
               <div key={year.id} className="space-y-4">
                 <div className="border-b pb-3 relative">
                   <div className="flex items-center gap-2">
-                    <CalendarDays className="w-6 h-6 text-primary" />
+                    <img
+                      src="/logo.png"
+                      alt="Logo"
+                      className="w-8 h-8 object-contain flex-shrink-0"
+                    />
                     <h1 className="text-2xl font-extrabold text-primary">مدرسة موال</h1>
                   </div>
 

@@ -34,11 +34,15 @@ export default function CourseCard({ course, stats, onClick, selectedDate }: Cou
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
-          {course.teachers_count != null && (
+          {course.teachers && course.teachers.length > 0 ? (
+            <span className="text-xs text-muted-foreground">
+              {course.teachers.map((t) => t.user?.name ?? `معلم #${t.id}`).join("، ")}
+            </span>
+          ) : course.teachers_count != null && course.teachers_count > 0 ? (
             <span className="text-xs text-muted-foreground">
               {course.teachers_count} معلم
             </span>
-          )}
+          ) : null}
         </div>
         <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
           {course.title}
@@ -59,17 +63,14 @@ export default function CourseCard({ course, stats, onClick, selectedDate }: Cou
 
       {/* Stats row */}
       <div className="flex items-center gap-4 text-xs mb-3">
-        <div className="flex items-center gap-1">
-          <Users className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-muted-foreground">{total}</span>
-        </div>
+
         <div className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-success" />
-          <span className="text-muted-foreground">{present}</span>
+          <span className="">{present}</span>
         </div>
         <div className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-destructive" />
-          <span className="text-muted-foreground">{absent}</span>
+          <span className="">{absent}</span>
         </div>
         {unmarked > 0 && (
           <div className="flex items-center gap-1">
@@ -81,10 +82,7 @@ export default function CourseCard({ course, stats, onClick, selectedDate }: Cou
 
       {/* Progress */}
       <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">{completionPct}%</span>
-          <span className="text-muted-foreground">اكتمال التسجيل</span>
-        </div>
+
         <Progress value={completionPct} className="h-1.5" />
       </div>
     </button>

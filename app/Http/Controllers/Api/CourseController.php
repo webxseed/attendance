@@ -21,7 +21,7 @@ class CourseController extends Controller
         $user = $request->user();
 
         if ($user->isAdmin()) {
-            return Course::with('academicYear')->withCount(['students', 'teachers'])->paginate(20);
+            return Course::with(['academicYear', 'teachers.user'])->withCount(['students', 'teachers'])->paginate(20);
         }
 
         if ($user->isTeacher()) {

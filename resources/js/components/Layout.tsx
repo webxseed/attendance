@@ -32,7 +32,7 @@ function LayoutContent() {
           </Button>
         </div>
 
-        <div className={`p-4 lg:p-8 max-w-7xl mx-auto w-full ${!isVisible ? 'lg:max-w-screen-2xl' : ''}`}>
+        <div className={`p-2  max-w-7xl mx-auto w-full`}>
           <Outlet />
         </div>
       </main>
