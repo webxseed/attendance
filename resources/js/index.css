@@ -170,7 +170,7 @@
   }
 
   .stat-card {
-    @apply rounded-xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-md;
+    @apply rounded-xl border bg-card p-2 shadow-sm transition-shadow hover:shadow-md;
   }
 
   .page-header {

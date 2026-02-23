@@ -77,7 +77,8 @@ export default function Today() {
   return (
     <div className="space-y-2 pb-20 lg:pb-8">
       {/* Top bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-center gap-4 text-center">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 pl-4 pr-4">
+
         <div className="page-header mb-0">
 
           {allYears.map((year) => {
@@ -87,22 +88,22 @@ export default function Today() {
             return (
               <div key={year.id} className="space-y-4">
                 <div className="border-b pb-3 relative">
-                  <div className="flex items-center gap-2">
+                  <div className="flex gap-2 items-center">
                     <img
                       src="/logo.png"
                       alt="Logo"
-                      className="w-8 h-8 object-contain flex-shrink-0"
+                      className="w-20 h-20 object-contain flex-shrink-0"
                     />
                     <h1 className="text-2xl font-extrabold text-primary">مدرسة موال</h1>
                   </div>
 
                   {(year.start_year && year.end_year) && (
-                    <p className=" font-semibold text-gray-700 mt-2">
+                    <p className=" font-bold text-gray-700 mt-2">
                       السنة الدراسية {year.start_year}-{year.end_year}
                     </p>
                   )}
 
-                  <h3 className="text-base font-medium text-gray-600">
+                  <h3 className="text-base font-medium text-black">
                     {year.title}
                   </h3>
                 </div>
@@ -113,13 +114,13 @@ export default function Today() {
             );
           })}
 
-          <p className="page-subtitle">
+          <p className=" font-bold text-black mt-3">
             {formattedDate}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Search removed as per previous code context, but keeping div for layout if needed */}
+          <SummaryCards {...totalStats} />
         </div>
       </div>
 
@@ -127,7 +128,7 @@ export default function Today() {
       <WeekStrip selectedDate={selectedDate} onDateChange={setSelectedDate} />
 
       {/* Summary cards */}
-      <SummaryCards {...totalStats} />
+      
 
       {/* Content */}
       {
@@ -146,13 +147,8 @@ export default function Today() {
 
               return (
                 <div key={year.id} className="space-y-4">
-                  <div className="flex items-center justify-between border-b pb-2">
-
-                    <span className="text-sm text-muted-foreground">
-                      {yearCourses.length} دورات
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
                     {yearCourses.map((course) => (
                       <CourseCard
                         key={course.id}
