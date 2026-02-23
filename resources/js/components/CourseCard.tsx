@@ -62,13 +62,19 @@ export default function CourseCard({ course, stats, onClick, selectedDate }: Cou
 
       {/* Color indicator */}
       <div className="flex flex-wrap flex-col items-start gap-2 mb-4">
-        <span className={`course-tag course-tag-${colorTag}`}>
+        <span className={`course-tag p-0 course-tag-${colorTag}`}>
           {course.description || ''}
         </span>
-        {todaySchedule && (todaySchedule.from_time || todaySchedule.to_time) && (
-          <p className="text-[10px] bg-background/80 px-1.5 py-0.5 rounded border text-black font-bold dir-ltr text-base flex items-center gap-1">
-            <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" className="ionicon" viewBox="0 0 512 512"><path d="M112.91 128A191.85 191.85 0 0064 254c-1.18 106.35 85.65 193.8 192 194 106.2.2 192-85.83 192-192 0-104.54-83.55-189.61-187.5-192a4.36 4.36 0 00-4.5 4.37V152" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="32" /><path d="M233.38 278.63l-79-113a8.13 8.13 0 0111.32-11.32l113 79a32.5 32.5 0 01-37.25 53.26 33.21 33.21 0 01-8.07-7.94z" /></svg> {todaySchedule.day ? (daysTranslation[todaySchedule.day] || todaySchedule.day) : ""}: {todaySchedule.from_time || ""} - {todaySchedule.to_time || ""}
-          </p>
+        {course.schedule_details && course.schedule_details.length > 0 && (
+          <div className="flex flex-wrap gap-2 w-full mt-1">
+            {course.schedule_details.map((schedule, idx) => (
+              (schedule.from_time || schedule.to_time) ? (
+                <p key={idx} className={`text-[10px] px-0 py-0.5 rounded border text-black font-bold dir-ltr  flex items-center gap-1 ${schedule.day === dayName ? 'bg-primary/20 border-primary/40' : 'bg-background/80'}`}>
+                  <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" className="ionicon" viewBox="0 0 512 512"><path d="M112.91 128A191.85 191.85 0 0064 254c-1.18 106.35 85.65 193.8 192 194 106.2.2 192-85.83 192-192 0-104.54-83.55-189.61-187.5-192a4.36 4.36 0 00-4.5 4.37V152" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="32" /><path d="M233.38 278.63l-79-113a8.13 8.13 0 0111.32-11.32l113 79a32.5 32.5 0 01-37.25 53.26 33.21 33.21 0 01-8.07-7.94z" /></svg> {schedule.day ? (daysTranslation[schedule.day] || schedule.day) : ""}: {schedule.from_time || ""} - {schedule.to_time || ""}
+                </p>
+              ) : null
+            ))}
+          </div>
         )}
       </div>
 
