@@ -87,7 +87,7 @@ export default function Today() {
 
             return (
               <div key={year.id} className="space-y-4">
-                <div className="border-b pb-3 relative">
+                <div className=" pb-3 relative">
                   <div className="flex gap-2 items-center">
                     <img
                       src="/logo.png"
@@ -107,28 +107,29 @@ export default function Today() {
                     {year.title}
                   </h3>
                 </div>
-
-
                 {/* render yearCourses here */}
               </div>
             );
           })}
 
-          <p className=" font-bold text-black mt-3">
-            {formattedDate}
-          </p>
+
         </div>
 
         <div className="flex items-center gap-2">
           <SummaryCards {...totalStats} />
+
         </div>
       </div>
 
       {/* Week strip */}
-      <WeekStrip selectedDate={selectedDate} onDateChange={setSelectedDate} />
-
+      <div className="flex items-center gap-2 justify-between p-2">
+        <WeekStrip selectedDate={selectedDate} onDateChange={setSelectedDate} />
+        <p className=" font-bold text-black">
+          {formattedDate}
+        </p>
+      </div>
       {/* Summary cards */}
-      
+
 
       {/* Content */}
       {
@@ -147,8 +148,8 @@ export default function Today() {
 
               return (
                 <div key={year.id} className="space-y-4">
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
                     {yearCourses.map((course) => (
                       <CourseCard
                         key={course.id}
@@ -198,6 +199,6 @@ export default function Today() {
           }
         }}
       />
-    </div>
+    </div >
   );
 }
