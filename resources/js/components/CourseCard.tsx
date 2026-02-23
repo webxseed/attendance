@@ -57,7 +57,7 @@ export default function CourseCard({ course, stats, onClick, selectedDate }: Cou
         </span>
         {todaySchedule && (todaySchedule.from_time || todaySchedule.to_time) && (
           <p className="text-[10px] bg-background/80 px-1.5 py-0.5 rounded border text-black font-bold dir-ltr text-base flex items-center gap-1">
-            <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" class="ionicon" viewBox="0 0 512 512"><path d="M112.91 128A191.85 191.85 0 0064 254c-1.18 106.35 85.65 193.8 192 194 106.2.2 192-85.83 192-192 0-104.54-83.55-189.61-187.5-192a4.36 4.36 0 00-4.5 4.37V152" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path d="M233.38 278.63l-79-113a8.13 8.13 0 0111.32-11.32l113 79a32.5 32.5 0 01-37.25 53.26 33.21 33.21 0 01-8.07-7.94z"/></svg> {todaySchedule.from_time || "???"} - {todaySchedule.to_time || "???"}
+            <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" class="ionicon" viewBox="0 0 512 512"><path d="M112.91 128A191.85 191.85 0 0064 254c-1.18 106.35 85.65 193.8 192 194 106.2.2 192-85.83 192-192 0-104.54-83.55-189.61-187.5-192a4.36 4.36 0 00-4.5 4.37V152" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="32"/><path d="M233.38 278.63l-79-113a8.13 8.13 0 0111.32-11.32l113 79a32.5 32.5 0 01-37.25 53.26 33.21 33.21 0 01-8.07-7.94z"/></svg> { todaySchedule.day || ""}: { todaySchedule.from_time || ""} - {todaySchedule.to_time || ""}
           </p>
         )}
       </div>
