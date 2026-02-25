@@ -57,10 +57,10 @@ export function useUpdateYear() {
 // Courses
 // ---------------------------------------------------------------------------
 
-export function useCourses() {
+export function useCourses(showArchived = false) {
   return useQuery({
-    queryKey: ["courses"],
-    queryFn: () => coursesApi.list().then((r) => r.data),
+    queryKey: ["courses", { archived: showArchived }],
+    queryFn: () => coursesApi.list(showArchived).then((r) => r.data),
   });
 }
 
@@ -115,6 +115,22 @@ export function useDeleteCourse() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => coursesApi.destroy(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["courses"] }),
+  });
+}
+
+export function useArchiveCourse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => coursesApi.archive(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["courses"] }),
+  });
+}
+
+export function useUnarchiveCourse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => coursesApi.unarchive(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["courses"] }),
   });
 }
@@ -225,10 +241,10 @@ export function useStudents() {
   });
 }
 
-export function useAllStudents() {
+export function useAllStudents(showArchived = false) {
   return useQuery({
-    queryKey: ["all-students"],
-    queryFn: () => studentsApi.listAll().then((r) => r.data),
+    queryKey: ["all-students", { archived: showArchived }],
+    queryFn: () => studentsApi.listAll(showArchived).then((r) => r.data),
   });
 }
 
@@ -291,6 +307,28 @@ export function useDeleteStudent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => studentsApi.destroy(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["students"] });
+      qc.invalidateQueries({ queryKey: ["all-students"] });
+    },
+  });
+}
+
+export function useArchiveStudent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => studentsApi.archive(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["students"] });
+      qc.invalidateQueries({ queryKey: ["all-students"] });
+    },
+  });
+}
+
+export function useUnarchiveStudent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => studentsApi.unarchive(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["students"] });
       qc.invalidateQueries({ queryKey: ["all-students"] });

@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useAllStudents, useCreateStudent, useUpdateStudent, useDeleteStudent } from "@/hooks/useApi";
+import { useAllStudents, useCreateStudent, useUpdateStudent, useDeleteStudent, useArchiveStudent, useUnarchiveStudent } from "@/hooks/useApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -11,13 +12,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { GraduationCap, Plus, Search, Loader2, Pencil, Trash2 } from "lucide-react";
+import { GraduationCap, Plus, Search, Loader2, Pencil, Trash2, Archive, ArchiveRestore } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Student } from "@/lib/api";
 
 export default function Students() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const { toast } = useToast();
 
   // Form state
@@ -38,10 +40,12 @@ export default function Students() {
   const [fatherPhone, setFatherPhone] = useState("");
 
   // API
-  const { data: allStudentsData, isLoading } = useAllStudents();
+  const { data: allStudentsData, isLoading } = useAllStudents(showArchived);
   const createMutation = useCreateStudent();
   const updateMutation = useUpdateStudent();
   const deleteMutation = useDeleteStudent();
+  const archiveMutation = useArchiveStudent();
+  const unarchiveMutation = useUnarchiveStudent();
   const students = allStudentsData ?? [];
 
   const filtered = search
@@ -157,6 +161,36 @@ export default function Students() {
         toast({
           title: "خطأ",
           description: err.response?.data?.message || "تعذّر حذف الطالب",
+          variant: "destructive",
+        });
+      },
+    });
+  };
+
+  const handleArchive = (student: Student) => {
+    archiveMutation.mutate(student.id, {
+      onSuccess: () => {
+        toast({ title: "تمت الأرشفة", description: `تم أرشفة الطالب "${student.full_name}"` });
+      },
+      onError: (err: any) => {
+        toast({
+          title: "خطأ",
+          description: err.response?.data?.message || "تعذّر أرشفة الطالب",
+          variant: "destructive",
+        });
+      },
+    });
+  };
+
+  const handleUnarchive = (student: Student) => {
+    unarchiveMutation.mutate(student.id, {
+      onSuccess: () => {
+        toast({ title: "تمت الاستعادة", description: `تم استعادة الطالب "${student.full_name}"` });
+      },
+      onError: (err: any) => {
+        toast({
+          title: "خطأ",
+          description: err.response?.data?.message || "تعذّر استعادة الطالب",
           variant: "destructive",
         });
       },
@@ -340,14 +374,25 @@ export default function Students() {
           </DialogContent>
         </Dialog>
 
-        <div className="relative w-full sm:w-auto">
-          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="بحث..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="ps-9 w-full sm:w-56"
-          />
+        <div className="flex items-center gap-2">
+          <Button
+            variant={showArchived ? "default" : "outline"}
+            size="sm"
+            className="gap-2"
+            onClick={() => setShowArchived(!showArchived)}
+          >
+            <Archive className="w-4 h-4" />
+            {showArchived ? "إخفاء المؤرشفين" : "المؤرشفون"}
+          </Button>
+          <div className="relative">
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="بحث..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="ps-9 w-full sm:w-56"
+            />
+          </div>
         </div>
       </div>
 
@@ -368,17 +413,42 @@ export default function Students() {
           {filtered.map((student) => (
             <div
               key={student.id}
-              className="grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-4 px-5 py-3 border-b last:border-b-0 hover:bg-muted/20 transition-colors items-center"
+              className={`grid grid-cols-[auto_1fr_1fr_1fr_auto] gap-4 px-5 py-3 border-b last:border-b-0 hover:bg-muted/20 transition-colors items-center ${student.archived_at ? "opacity-60" : ""}`}
             >
               <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground"
-                  onClick={() => handleEdit(student)}
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </Button>
+                {!student.archived_at && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground"
+                    onClick={() => handleEdit(student)}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+                {student.archived_at ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                    onClick={() => handleUnarchive(student)}
+                    disabled={unarchiveMutation.isPending}
+                    title="استعادة الطالب"
+                  >
+                    <ArchiveRestore className="w-3.5 h-3.5" />
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-amber-600"
+                    onClick={() => handleArchive(student)}
+                    disabled={archiveMutation.isPending}
+                    title="أرشفة الطالب"
+                  >
+                    <Archive className="w-3.5 h-3.5" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -391,7 +461,12 @@ export default function Students() {
               </div>
 
               <div className="flex flex-col">
-                <span className="font-medium text-sm">{student.full_name}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-sm">{student.full_name}</span>
+                  {student.archived_at && (
+                    <Badge variant="secondary" className="text-[10px] h-4 px-1">مؤرشف</Badge>
+                  )}
+                </div>
                 {student.external_code && <span className="text-xs text-muted-foreground">#{student.external_code}</span>}
               </div>
 

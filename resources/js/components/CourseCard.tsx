@@ -23,17 +23,23 @@ export default function CourseCard({ course, stats, onClick, selectedDate }: Cou
   const colorTag = toColorTag(course.color);
 
   const total = stats?.total ?? course.students_count ?? 0;
-  const present = stats?.present ?? 0;
-  const absent = stats?.absent ?? 0;
-  const unmarked = stats?.unmarked ?? total;
-  const marked = present + absent;
-  const completionPct = total > 0 ? Math.round((marked / total) * 100) : 0;
 
   // Check if course is scheduled for the selected date
   const dayName = selectedDate
     ? new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long" })
     : "";
   const todaySchedule = course.schedule_details?.find((s) => s.day === dayName);
+
+  // Show 0/0 if no attendance stats, or if course has a schedule but no lesson today
+  const hasSchedule = course.schedule_details && course.schedule_details.length > 0;
+  const noLessonToday = selectedDate && hasSchedule && !todaySchedule;
+  const showStats = !!stats && !noLessonToday;
+
+  const present = showStats ? (stats?.present ?? 0) : 0;
+  const absent = showStats ? (stats?.absent ?? 0) : 0;
+  const unmarked = showStats ? (stats?.unmarked ?? 0) : 0;
+  const marked = present + absent;
+  const completionPct = showStats && total > 0 ? Math.round((marked / total) * 100) : 0;
 
   return (
     <button

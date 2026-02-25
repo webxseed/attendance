@@ -14,6 +14,8 @@ import {
   useRemoveStudent,
   useCreateStudent,
   useDeleteCourse,
+  useArchiveCourse,
+  useUnarchiveCourse,
   useYears,
   useCreateYear,
 } from "@/hooks/useApi";
@@ -70,6 +72,8 @@ import {
   ChevronsUpDown,
   Pencil,
   Trash2,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -85,6 +89,7 @@ export default function Courses() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [manageCourseId, setManageCourseId] = useState<number | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const { toast } = useToast();
 
   // Create-form state
@@ -100,12 +105,33 @@ export default function Courses() {
     { day: string; from_time: string; to_time: string; note: string }[]
   >([]);
 
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   // API – list
-  const { data: coursesPage, isLoading } = useCourses();
+  const { data: coursesPage, isLoading } = useCourses(showArchived);
   const { data: years } = useYears();
   const createMutation = useCreateCourse();
   const createYearMutation = useCreateYear();
+  const archiveCourseMutation = useArchiveCourse();
+  const unarchiveCourseMutation = useUnarchiveCourse();
   const courses = coursesPage?.data ?? [];
+
+  const handleArchiveCourse = (e: React.MouseEvent, courseId: number) => {
+    e.stopPropagation();
+    archiveCourseMutation.mutate(courseId, {
+      onSuccess: () => toast({ title: "تمت الأرشفة", description: "تم أرشفة الدورة بنجاح" }),
+      onError: (err: any) => toast({ title: "خطأ", description: err.response?.data?.message || "تعذّر الأرشفة", variant: "destructive" }),
+    });
+  };
+
+  const handleUnarchiveCourse = (e: React.MouseEvent, courseId: number) => {
+    e.stopPropagation();
+    unarchiveCourseMutation.mutate(courseId, {
+      onSuccess: () => toast({ title: "تمت الاستعادة", description: "تم استعادة الدورة بنجاح" }),
+      onError: (err: any) => toast({ title: "خطأ", description: err.response?.data?.message || "تعذّر الاستعادة", variant: "destructive" }),
+    });
+  };
 
   const filtered = search
     ? courses.filter((c) => c.title.includes(search))
@@ -432,14 +458,25 @@ export default function Courses() {
           </DialogContent>
         </Dialog>
 
-        <div className="relative w-full sm:w-auto">
-          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="بحث..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="ps-9 w-full sm:w-56"
-          />
+        <div className="flex items-center gap-2">
+          <Button
+            variant={showArchived ? "default" : "outline"}
+            size="sm"
+            className="gap-2"
+            onClick={() => setShowArchived(!showArchived)}
+          >
+            <Archive className="w-4 h-4" />
+            {showArchived ? "إخفاء المؤرشفة" : "المؤرشفة"}
+          </Button>
+          <div className="relative">
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="بحث..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="ps-9 w-full sm:w-56"
+            />
+          </div>
         </div>
       </div>
 
@@ -450,28 +487,34 @@ export default function Courses() {
         </div>
       ) : (
         <div className="bg-card rounded-xl border overflow-hidden">
-          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-5 py-3 border-b bg-muted/30 text-xs font-semibold text-muted-foreground">
+          <div className={`grid ${isAdmin ? "grid-cols-[1fr_auto_auto_auto_auto]" : "grid-cols-[1fr_auto_auto_auto]"} gap-4 px-5 py-3 border-b bg-muted/30 text-xs font-semibold text-muted-foreground`}>
             <span className="text-start">اسم الدورة</span>
             <span>اللون</span>
             <span>المعلمون</span>
             <span>الطلاب</span>
+            {isAdmin && <span></span>}
           </div>
           {filtered.map((course) => {
             const colorTag = toColorTag(course.color);
             return (
-              <button
+              <div
                 key={course.id}
-                onClick={() => setManageCourseId(course.id)}
-                className="w-full grid grid-cols-[1fr_auto_auto_auto] gap-4 px-5 py-4 border-b last:border-b-0 hover:bg-muted/20 transition-colors items-center text-start"
+                className={`w-full grid ${isAdmin ? "grid-cols-[1fr_auto_auto_auto_auto]" : "grid-cols-[1fr_auto_auto_auto]"} gap-4 px-5 py-4 border-b last:border-b-0 hover:bg-muted/20 transition-colors items-center ${course.archived_at ? "opacity-60" : ""}`}
               >
-                <div className="flex items-center gap-3">
+                <button
+                  className="flex items-center gap-3 text-start min-w-0"
+                  onClick={() => setManageCourseId(course.id)}
+                >
                   <div
-                    className={`w-2 h-8 rounded-full course-tag-${colorTag}`}
+                    className={`w-2 h-8 rounded-full course-tag-${colorTag} flex-shrink-0`}
                     style={{ minWidth: 8 }}
                   />
-                  <div>
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-medium text-sm">{course.title}</p>
+                      {course.archived_at && (
+                        <Badge variant="secondary" className="text-[10px] h-4 px-1">مؤرشف</Badge>
+                      )}
                       {course.academic_year && (
                         <Badge variant="secondary" className="text-[10px] h-4 px-1">
                           {course.academic_year.name}
@@ -489,7 +532,7 @@ export default function Courses() {
                       </p>
                     )}
                   </div>
-                </div>
+                </button>
                 <span
                   className={`course-tag course-tag-${colorTag} text-[10px]`}
                 >
@@ -503,7 +546,32 @@ export default function Courses() {
                   <GraduationCap className="w-3.5 h-3.5" />
                   <span>{course.students_count ?? 0}</span>
                 </div>
-              </button>
+                {isAdmin && (
+                  course.archived_at ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-primary"
+                      onClick={(e) => handleUnarchiveCourse(e, course.id)}
+                      disabled={unarchiveCourseMutation.isPending}
+                      title="استعادة الدورة"
+                    >
+                      <ArchiveRestore className="w-3.5 h-3.5" />
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-amber-600"
+                      onClick={(e) => handleArchiveCourse(e, course.id)}
+                      disabled={archiveCourseMutation.isPending}
+                      title="أرشفة الدورة"
+                    >
+                      <Archive className="w-3.5 h-3.5" />
+                    </Button>
+                  )
+                )}
+              </div>
             );
           })}
           {filtered.length === 0 && (
@@ -556,8 +624,12 @@ function CourseManageSheet({
   const removeStudent = useRemoveStudent();
   const updateCourse = useUpdateCourse();
   const deleteCourse = useDeleteCourse();
+  const archiveCourse = useArchiveCourse();
+  const unarchiveCourse = useUnarchiveCourse();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+
+  const isArchived = !!course?.archived_at;
 
   // Edit form state
   const [isEditing, setIsEditing] = useState(false);
@@ -1293,18 +1365,49 @@ function CourseManageSheet({
                 </div>
               </div>
               {isAdmin && (
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-2 mt-8">
+                  {isArchived ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        unarchiveCourse.mutate(courseId!, {
+                          onSuccess: () => toast({ title: "تمت الاستعادة", description: "تم استعادة الدورة بنجاح" }),
+                          onError: (err: any) => toast({ title: "خطأ", description: err.response?.data?.message || "تعذّر الاستعادة", variant: "destructive" }),
+                        });
+                      }}
+                      disabled={unarchiveCourse.isPending}
+                      className="gap-2"
+                    >
+                      {unarchiveCourse.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArchiveRestore className="w-4 h-4" />}
+                      استعادة الدورة
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        archiveCourse.mutate(courseId!, {
+                          onSuccess: () => { toast({ title: "تمت الأرشفة", description: "تم أرشفة الدورة بنجاح" }); onClose(); },
+                          onError: (err: any) => toast({ title: "خطأ", description: err.response?.data?.message || "تعذّر الأرشفة", variant: "destructive" }),
+                        });
+                      }}
+                      disabled={archiveCourse.isPending}
+                      className="gap-2 text-amber-600 border-amber-300 hover:bg-amber-50"
+                    >
+                      {archiveCourse.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
+                      أرشفة الدورة
+                    </Button>
+                  )}
                   <Button
                     variant="destructive"
                     onClick={handleDelete}
                     disabled={deleteCourse.isPending}
-                    className="flex align-items-center my-1 mt-8"
+                    className="flex align-items-center gap-2"
                     title="حذف الدورة"
                   >
                     {deleteCourse.isPending ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <p className="flex align-items-center gap-2"> <Trash2 className="w-4 h-4" /> حذف الدورة </p>
+                      <><Trash2 className="w-4 h-4" /> حذف الدورة</>
                     )}
                   </Button>
                 </div>

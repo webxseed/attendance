@@ -9,10 +9,11 @@ class Course extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title', 'color', 'description', 'year', 'year_id', 'schedule_details'];
+    protected $fillable = ['title', 'color', 'description', 'year', 'year_id', 'schedule_details', 'archived_at'];
 
     protected $casts = [
         'schedule_details' => 'array',
+        'archived_at' => 'datetime',
     ];
 
     public function academicYear()

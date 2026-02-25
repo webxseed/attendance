@@ -20,8 +20,13 @@ class CourseController extends Controller
     {
         $user = $request->user();
 
+        $showArchived = $request->boolean('archived');
+
         if ($user->isAdmin()) {
-            return Course::with(['academicYear', 'teachers.user'])->withCount(['students', 'teachers'])->paginate(20);
+            $query = $showArchived
+                ? Course::whereNotNull('archived_at')
+                : Course::whereNull('archived_at');
+            return $query->with(['academicYear', 'teachers.user'])->withCount(['students', 'teachers'])->paginate(20);
         }
 
         if ($user->isTeacher()) {
@@ -29,7 +34,7 @@ class CourseController extends Controller
             if (!$user->teacher) {
                 return response()->json(['message' => 'Teacher profile not found.'], 403);
             }
-            return $user->teacher->courses()->with('academicYear')->withCount(['students'])->paginate(20);
+            return $user->teacher->courses()->whereNull('archived_at')->with('academicYear')->withCount(['students'])->paginate(20);
         }
 
         return response()->json(['message' => 'Unauthorized'], 403);
@@ -144,6 +149,30 @@ class CourseController extends Controller
         $course->students()->detach($request->student_id);
 
         return response()->json(['message' => 'Student unassigned']);
+    }
+
+    /**
+     * Archive course (Admin only).
+     */
+    public function archive(Request $request, Course $course)
+    {
+        if (!$request->user()->isAdmin()) return response()->json(['message' => 'Unauthorized'], 403);
+
+        $course->update(['archived_at' => now()]);
+
+        return response()->json(['message' => 'تم أرشفة الدورة بنجاح']);
+    }
+
+    /**
+     * Unarchive course (Admin only).
+     */
+    public function unarchive(Request $request, Course $course)
+    {
+        if (!$request->user()->isAdmin()) return response()->json(['message' => 'Unauthorized'], 403);
+
+        $course->update(['archived_at' => null]);
+
+        return response()->json(['message' => 'تم استعادة الدورة بنجاح']);
     }
 
     /**

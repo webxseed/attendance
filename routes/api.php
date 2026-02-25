@@ -26,6 +26,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Courses
     Route::apiResource('courses', CourseController::class);
+    Route::post('/courses/{course}/archive', [CourseController::class, 'archive']);
+    Route::post('/courses/{course}/unarchive', [CourseController::class, 'unarchive']);
     Route::apiResource('years', \App\Http\Controllers\Api\YearController::class);
 
     // Course assignments (Admin)
@@ -39,6 +41,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Students (Admin)
     Route::apiResource('students', StudentController::class);
+    Route::post('/students/{student}/archive', [StudentController::class, 'archive']);
+    Route::post('/students/{student}/unarchive', [StudentController::class, 'unarchive']);
 
     // Users (Admin)
     Route::apiResource('users', \App\Http\Controllers\Api\UserController::class);

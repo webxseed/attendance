@@ -79,6 +79,7 @@ export interface Course {
   teachers_count?: number;
   teachers?: Teacher[];
   students?: Student[];
+  archived_at?: string | null;
 }
 
 export interface Student {
@@ -96,6 +97,7 @@ export interface Student {
   father_name?: string | null;
   father_phone?: string | null;
   courses?: Course[];
+  archived_at?: string | null;
 }
 
 export interface AttendanceSession {
@@ -213,7 +215,7 @@ export const yearsApi = {
 // ---------------------------------------------------------------------------
 
 export const coursesApi = {
-  list: () => api.get<PaginatedResponse<Course>>("/courses"),
+  list: (showArchived = false) => api.get<PaginatedResponse<Course>>(`/courses${showArchived ? "?archived=true" : ""}`),
 
   show: (id: number) => api.get<Course>(`/courses/${id}`),
 
@@ -239,6 +241,9 @@ export const coursesApi = {
   ) => api.put<Course>(`/courses/${id}`, data),
 
   destroy: (id: number) => api.delete(`/courses/${id}`),
+
+  archive: (id: number) => api.post(`/courses/${id}/archive`),
+  unarchive: (id: number) => api.post(`/courses/${id}/unarchive`),
 
   assignTeacher: (courseId: number, teacherId: number) =>
     api.post(`/courses/${courseId}/teachers`, { teacher_id: teacherId }),
@@ -299,8 +304,8 @@ export const teachersApi = {
 // ---------------------------------------------------------------------------
 
 export const studentsApi = {
-  list: () => api.get<PaginatedResponse<Student>>("/students"),
-  listAll: () => api.get<Student[]>("/students?all=true"),
+  list: (showArchived = false) => api.get<PaginatedResponse<Student>>(`/students${showArchived ? "?archived=true" : ""}`),
+  listAll: (showArchived = false) => api.get<Student[]>(`/students?all=true${showArchived ? "&archived=true" : ""}`),
 
   show: (id: number) => api.get<Student>(`/students/${id}`),
 
@@ -338,6 +343,9 @@ export const studentsApi = {
   ) => api.put<Student>(`/students/${id}`, data),
 
   destroy: (id: number) => api.delete(`/students/${id}`),
+
+  archive: (id: number) => api.post(`/students/${id}/archive`),
+  unarchive: (id: number) => api.post(`/students/${id}/unarchive`),
 };
 
 // ---------------------------------------------------------------------------

@@ -15,11 +15,16 @@ class StudentController extends Controller
     {
         if (!$request->user()->isAdmin()) return response()->json(['message' => 'Unauthorized'], 403);
 
+        $showArchived = $request->boolean('archived');
+        $query = $showArchived
+            ? Student::whereNotNull('archived_at')
+            : Student::whereNull('archived_at');
+
         if ($request->query('all')) {
-            return Student::orderBy('full_name')->get();
+            return $query->orderBy('full_name')->get();
         }
 
-        return Student::paginate(20);
+        return $query->paginate(20);
     }
 
     /**
@@ -84,6 +89,30 @@ class StudentController extends Controller
         $student->update($validated);
 
         return response()->json($student);
+    }
+
+    /**
+     * Archive student. (Admin only)
+     */
+    public function archive(Request $request, Student $student)
+    {
+        if (!$request->user()->isAdmin()) return response()->json(['message' => 'Unauthorized'], 403);
+
+        $student->update(['archived_at' => now()]);
+
+        return response()->json(['message' => 'تم أرشفة الطالب بنجاح']);
+    }
+
+    /**
+     * Unarchive student. (Admin only)
+     */
+    public function unarchive(Request $request, Student $student)
+    {
+        if (!$request->user()->isAdmin()) return response()->json(['message' => 'Unauthorized'], 403);
+
+        $student->update(['archived_at' => null]);
+
+        return response()->json(['message' => 'تم استعادة الطالب بنجاح']);
     }
 
     /**

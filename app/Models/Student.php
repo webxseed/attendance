@@ -22,6 +22,11 @@ class Student extends Model
         'mother_phone',
         'father_name',
         'father_phone',
+        'archived_at',
+    ];
+
+    protected $casts = [
+        'archived_at' => 'datetime',
     ];
 
     public function courses()
