@@ -119,6 +119,13 @@ export interface AttendanceRecord {
   marked_by_user_id: number | null;
   marked_at: string | null;
   student?: Student;
+  /** Present on `/reports` generate responses */
+  session?: {
+    id: number;
+    course_id: number;
+    date: string;
+    course?: Pick<Course, "id" | "title">;
+  };
 }
 
 export interface PaginatedResponse<T> {

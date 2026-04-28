@@ -383,15 +383,25 @@ export function useDailyOverview(date: string, enabled = true) {
   });
 }
 
-export function useReportGenerate(params: {
-  course_id?: number;
-  teacher_id?: number;
-  from_date?: string;
-  to_date?: string;
-}) {
+export function useReportGenerate(
+  params: {
+    course_id?: number;
+    teacher_id?: number;
+    student_id?: number;
+    from_date?: string;
+    to_date?: string;
+  },
+  enabled = true
+) {
+  const rangeOk =
+    !!params.from_date &&
+    !!params.to_date &&
+    params.from_date <= params.to_date;
+
   return useQuery({
     queryKey: ["reports", params],
     queryFn: () => reportsApi.generate(params).then((r) => r.data),
+    enabled: enabled && rangeOk,
   });
 }
 
