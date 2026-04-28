@@ -75,7 +75,7 @@ export default function Today() {
   const coursesWithoutYear = filteredCourses.filter((c) => !c.year_id);
 
   return (
-    <div className="space-y-2 pb-20 lg:pb-8">
+    <div className="space-y-2 pb-20 lg:pb-8 " style="margin-top: -40px;">
       {/* Top bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 pl-4 pr-4">
 
