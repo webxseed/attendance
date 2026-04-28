@@ -1,10 +1,23 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AttendanceRecord } from "@/lib/api";
 import { fmtDate } from "@/lib/api";
-import { useReportGenerate, useCourses, useAllStudents } from "@/hooks/useApi";
-import { BarChart3, Download, Filter, Loader2 } from "lucide-react";
+import { useReportGenerate, useCourses, useCourse } from "@/hooks/useApi";
+import { BarChart3, Check, ChevronsUpDown, Download, Filter, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -13,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   present: { label: "حاضر", className: "bg-success/10 text-success border-success/30" },
@@ -34,6 +48,7 @@ export default function Reports() {
   const [toDate, setToDate] = useState(today);
   const [courseFilter, setCourseFilter] = useState("all");
   const [studentFilter, setStudentFilter] = useState("all");
+  const [studentComboOpen, setStudentComboOpen] = useState(false);
   const [dateOrder, setDateOrder] = useState<"desc" | "asc">("desc");
 
   const reportParams = useMemo(() => {
@@ -43,15 +58,29 @@ export default function Reports() {
       course_id?: number;
       student_id?: number;
     } = { from_date: fromDate, to_date: toDate };
-    if (courseFilter !== "all") p.course_id = Number(courseFilter);
-    if (studentFilter !== "all") p.student_id = Number(studentFilter);
+    if (courseFilter !== "all") {
+      p.course_id = Number(courseFilter);
+      if (studentFilter !== "all") p.student_id = Number(studentFilter);
+    }
     return p;
   }, [fromDate, toDate, courseFilter, studentFilter]);
 
   const { data: report, isLoading } = useReportGenerate(reportParams);
   const { data: coursesPage } = useCourses();
   const courses = coursesPage?.data ?? [];
-  const { data: students = [] } = useAllStudents(false);
+
+  const selectedCourseId =
+    courseFilter !== "all" ? Number(courseFilter) : null;
+  const { data: selectedCourse, isLoading: courseDetailLoading } = useCourse(
+    selectedCourseId ?? 0
+  );
+  const courseStudents = selectedCourse?.students ?? [];
+
+  useEffect(() => {
+    if (studentFilter === "all" || !courseStudents.length) return;
+    const ok = courseStudents.some((s) => String(s.id) === studentFilter);
+    if (!ok) setStudentFilter("all");
+  }, [courseStudents, studentFilter]);
 
   const sortedRecords = useMemo(() => {
     const list = [...(report?.records ?? [])];
@@ -95,7 +124,13 @@ export default function Reports() {
           />
         </div>
 
-        <Select value={courseFilter} onValueChange={setCourseFilter}>
+        <Select
+          value={courseFilter}
+          onValueChange={(v) => {
+            setCourseFilter(v);
+            setStudentFilter("all");
+          }}
+        >
           <SelectTrigger className="w-48">
             <SelectValue placeholder="الدورة" />
           </SelectTrigger>
@@ -109,19 +144,90 @@ export default function Reports() {
           </SelectContent>
         </Select>
 
-        <Select value={studentFilter} onValueChange={setStudentFilter}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="الطالب" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">جميع الطلاب</SelectItem>
-            {students.map((s) => (
-              <SelectItem key={s.id} value={String(s.id)}>
-                {s.full_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {selectedCourseId == null ? (
+          <Button
+            variant="outline"
+            disabled
+            className="w-[min(100%,280px)] justify-between font-normal text-muted-foreground"
+          >
+            اختر دورة لعرض الطلاب
+            <ChevronsUpDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        ) : (
+          <Popover open={studentComboOpen} onOpenChange={setStudentComboOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={studentComboOpen}
+                disabled={courseDetailLoading}
+                className="w-[min(100%,280px)] justify-between text-start font-normal"
+              >
+                {courseDetailLoading ? (
+                  <span className="text-muted-foreground">جارٍ التحميل…</span>
+                ) : studentFilter === "all" ? (
+                  <span className="text-muted-foreground">جميع طلاب الدورة</span>
+                ) : (
+                  courseStudents.find((s) => String(s.id) === studentFilter)
+                    ?.full_name ?? "طالب"
+                )}
+                {courseDetailLoading ? (
+                  <Loader2 className="ms-2 h-4 w-4 shrink-0 animate-spin opacity-50" />
+                ) : (
+                  <ChevronsUpDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[300px] p-0" align="start">
+              <Command>
+                <CommandInput placeholder="بحث عن طالب…" />
+                <CommandList>
+                  <CommandEmpty>لم يُعثر على طالب.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem
+                      value="__all_students"
+                      onSelect={() => {
+                        setStudentFilter("all");
+                        setStudentComboOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "me-2 h-4 w-4",
+                          studentFilter === "all" ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      جميع طلاب الدورة
+                    </CommandItem>
+                    {courseStudents.map((student) => (
+                      <CommandItem
+                        key={student.id}
+                        value={`${student.full_name} ${student.external_code ?? ""}`}
+                        onSelect={() => {
+                          const id = String(student.id);
+                          setStudentFilter(
+                            id === studentFilter ? "all" : id
+                          );
+                          setStudentComboOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "me-2 h-4 w-4",
+                            studentFilter === String(student.id)
+                              ? "opacity-100"
+                              : "opacity-0"
+                          )}
+                        />
+                        {student.full_name}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        )}
 
         <Select value={dateOrder} onValueChange={(v) => setDateOrder(v as "desc" | "asc")}>
           <SelectTrigger className="w-44">
