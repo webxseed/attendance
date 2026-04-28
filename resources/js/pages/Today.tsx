@@ -64,7 +64,7 @@ export default function Today() {
 
   // Format date for display
   const dateObj = new Date(selectedDate + "T00:00:00");
-  const formattedDate = dateObj.toLocaleDateString("ar-SA", {
+  const formattedDate = dateObj.toLocaleDateString("ar-SA-u-ca-gregory", {
     weekday: "long",
     year: "numeric",
     month: "long",
