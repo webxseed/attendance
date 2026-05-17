@@ -77,7 +77,7 @@ export default function Today() {
   return (
     <div className="space-y-2 pb-20 lg:pb-8 " >
       {/* Top bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 pl-4 pr-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4  pl-4 pr-4">
 
         <div className="page-header mb-0">
 
@@ -92,7 +92,7 @@ export default function Today() {
                     <img
                       src="/logo.png"
                       alt="Logo"
-                      className="w-20 h-20 object-contain flex-shrink-0"
+                      className="w-14 h-14 object-contain flex-shrink-0"
                     />
                     <h1 className="text-2xl font-extrabold text-primary">مدرسة موال</h1>
                   </div>
@@ -122,7 +122,7 @@ export default function Today() {
       </div>
 
       {/* Week strip */}
-      <div className="flex items-center gap-2 justify-between p-2">
+      <div className="flex items-center gap-2 justify-between">
         <WeekStrip selectedDate={selectedDate} onDateChange={setSelectedDate} />
         <p className=" font-bold text-black">
           {formattedDate}

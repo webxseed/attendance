@@ -185,3 +185,7 @@
     @apply text-sm text-muted-foreground mt-1;
   }
 }
+
+.main-head {
+  margin-top:-3rem;
+}

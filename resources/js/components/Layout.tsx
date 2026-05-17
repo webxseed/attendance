@@ -32,7 +32,7 @@ function LayoutContent() {
           </Button>
         </div>
 
-        <div className={`p-2  max-w-7xl mx-auto w-full`}>
+        <div className={`p-2  max-w-7xl mx-auto w-full main-head`}>
           <Outlet />
         </div>
       </main>
