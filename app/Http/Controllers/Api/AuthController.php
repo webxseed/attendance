@@ -119,7 +119,7 @@ class AuthController extends Controller
 
         $headers = [
             'Content-Type: application/json',
-            'Authorization: Basic bHVtYXN5czo5NzFmNzRmZi0zMzBkLTRhYWQtYjRkYi1lMjQwZjNiZDg3NWU=' // replace 'Your Base Credentials' with your actual credentials
+            'Authorization: Basic bHVtYXN5czphZWFhMmVkZS1mM2E0LTQ0NGItYjYyMi1iNWQ0MjFkYTJiZTM=' // replace 'Your Base Credentials' with your actual credentials
         ];
 
         $ch = curl_init($url);
