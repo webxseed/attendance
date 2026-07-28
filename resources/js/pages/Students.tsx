@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAllStudents, useCreateStudent, useUpdateStudent, useDeleteStudent, useArchiveStudent, useUnarchiveStudent } from "@/hooks/useApi";
+import { useAllStudents, useCreateStudent, useUpdateStudent, useDeleteStudent, useArchiveStudent, useUnarchiveStudent, useCategories } from "@/hooks/useApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { GraduationCap, Plus, Search, Loader2, Pencil, Trash2, Archive, ArchiveRestore } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Student } from "@/lib/api";
@@ -27,6 +34,7 @@ export default function Students() {
   const [fullName, setFullName] = useState("");
   const [externalCode, setExternalCode] = useState("");
   const [notes, setNotes] = useState("");
+  const [categoryId, setCategoryId] = useState<string>("");
 
   // New Fields
   const [dateOfBirth, setDateOfBirth] = useState("");
@@ -41,6 +49,7 @@ export default function Students() {
 
   // API
   const { data: allStudentsData, isLoading } = useAllStudents(showArchived);
+  const { data: categories } = useCategories();
   const createMutation = useCreateStudent();
   const updateMutation = useUpdateStudent();
   const deleteMutation = useDeleteStudent();
@@ -57,6 +66,7 @@ export default function Students() {
     setFullName("");
     setExternalCode("");
     setNotes("");
+    setCategoryId("");
     setDateOfBirth("");
     setIdentityNumber("");
     setGradeLevel("");
@@ -73,6 +83,7 @@ export default function Students() {
     setFullName(student.full_name);
     setExternalCode(student.external_code || "");
     setNotes(student.notes || "");
+    setCategoryId(student.category_id?.toString() || "");
     setDateOfBirth(student.date_of_birth || "");
     setIdentityNumber(student.identity_number || "");
     setGradeLevel(student.grade_level || "");
@@ -92,6 +103,7 @@ export default function Students() {
       full_name: fullName.trim(),
       external_code: externalCode.trim() || undefined,
       notes: notes.trim() || undefined,
+      category_id: categoryId ? parseInt(categoryId) : null,
       date_of_birth: dateOfBirth || undefined,
       identity_number: identityNumber.trim() || undefined,
       grade_level: gradeLevel.trim() || undefined,
@@ -235,6 +247,28 @@ export default function Students() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label>التصنيف</Label>
+                  <Select
+                    value={categoryId || "none"}
+                    onValueChange={(v) => setCategoryId(v === "none" ? "" : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="اختر التصنيف" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">بدون تصنيف</SelectItem>
+                      {categories?.map((c) => (
+                        <SelectItem key={c.id} value={c.id.toString()}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
                   <Label>رقم الهوية</Label>
                   <Input
                     placeholder="رقم الهوية"
@@ -242,9 +276,6 @@ export default function Students() {
                     onChange={(e) => setIdentityNumber(e.target.value)}
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>تاريخ الميلاد</Label>
                   <Input
@@ -253,6 +284,9 @@ export default function Students() {
                     onChange={(e) => setDateOfBirth(e.target.value)}
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>الرقم التعريفي (اختياري)</Label>
                   <Input
@@ -261,9 +295,6 @@ export default function Students() {
                     onChange={(e) => setExternalCode(e.target.value)}
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>الصف</Label>
                   <Input
@@ -272,14 +303,15 @@ export default function Students() {
                     onChange={(e) => setGradeLevel(e.target.value)}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>المدرسة</Label>
-                  <Input
-                    placeholder="اسم المدرسة"
-                    value={schoolName}
-                    onChange={(e) => setSchoolName(e.target.value)}
-                  />
-                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>المدرسة</Label>
+                <Input
+                  placeholder="اسم المدرسة"
+                  value={schoolName}
+                  onChange={(e) => setSchoolName(e.target.value)}
+                />
               </div>
 
               <div className="space-y-2">
@@ -465,6 +497,11 @@ export default function Students() {
                   <span className="font-medium text-sm">{student.full_name}</span>
                   {student.archived_at && (
                     <Badge variant="secondary" className="text-[10px] h-4 px-1">مؤرشف</Badge>
+                  )}
+                  {student.category && (
+                    <Badge variant="outline" className="text-[10px] h-4 px-1">
+                      {student.category.name}
+                    </Badge>
                   )}
                 </div>
                 {student.external_code && <span className="text-xs text-muted-foreground">#{student.external_code}</span>}

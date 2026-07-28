@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
 import { Course, fmtDate } from "@/lib/api";
 import { useCourses, useTodayStats, useYears } from "@/hooks/useApi";
 import SummaryCards from "@/components/SummaryCards";
@@ -7,19 +6,14 @@ import WeekStrip from "@/components/WeekStrip";
 import CourseCard from "@/components/CourseCard";
 import AttendanceDrawer from "@/components/AttendanceDrawer";
 import FloatingActionButton from "@/components/FloatingActionButton";
-import { CalendarDays, Search, Loader2 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { CalendarDays, Loader2 } from "lucide-react";
 
 export default function Today() {
-  const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
-
   const today = fmtDate(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [search, setSearch] = useState("");
+  const [search] = useState("");
 
   // Fetch courses and years
   const { data: coursesPage, isLoading: coursesLoading } = useCourses();
@@ -74,45 +68,39 @@ export default function Today() {
   const isLoading = coursesLoading || yearsLoading;
   const coursesWithoutYear = filteredCourses.filter((c) => !c.year_id);
 
+  // Prefer the first year that has courses for the academic-year subtitle
+  const primaryYear =
+    allYears.find((year) => filteredCourses.some((c) => c.year_id === year.id)) ??
+    allYears[0];
+
   return (
     <div className="space-y-2 pb-20 lg:pb-8 " >
       {/* Top bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4  pl-4 pr-4">
 
         <div className="page-header mb-0">
+          <div className="pb-3">
+            <div className="flex gap-2 items-center">
+              <img
+                src="/logo.png"
+                alt="Logo"
+                className="w-14 h-14 object-contain flex-shrink-0"
+              />
+              <h1 className="text-2xl font-extrabold text-primary">مدرسة موال</h1>
+            </div>
 
-          {allYears.map((year) => {
-            const yearCourses = filteredCourses.filter((c) => c.year_id === year.id);
-            if (yearCourses.length === 0) return null;
+            {primaryYear?.start_year && primaryYear?.end_year && (
+              <p className="font-bold text-gray-700 mt-2">
+                السنة الدراسية {primaryYear.start_year}-{primaryYear.end_year}
+              </p>
+            )}
 
-            return (
-              <div key={year.id} className="space-y-4">
-                <div className=" pb-3 relative">
-                  <div className="flex gap-2 items-center">
-                    <img
-                      src="/logo.png"
-                      alt="Logo"
-                      className="w-14 h-14 object-contain flex-shrink-0"
-                    />
-                    <h1 className="text-2xl font-extrabold text-primary">مدرسة موال</h1>
-                  </div>
-
-                  {(year.start_year && year.end_year) && (
-                    <p className=" font-bold text-gray-700 mt-2">
-                      السنة الدراسية {year.start_year}-{year.end_year}
-                    </p>
-                  )}
-
-                  <h3 className="text-base font-medium text-black">
-                    {year.title}
-                  </h3>
-                </div>
-                {/* render yearCourses here */}
-              </div>
-            );
-          })}
-
-
+            {primaryYear?.title && (
+              <h3 className="text-base font-medium text-black">
+                {primaryYear.title}
+              </h3>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -148,6 +136,16 @@ export default function Today() {
 
               return (
                 <div key={year.id} className="space-y-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">
+                      {year.name || year.title}
+                    </h2>
+                    {year.start_year && year.end_year && (
+                      <p className="text-sm text-muted-foreground">
+                        {year.start_year}-{year.end_year}
+                      </p>
+                    )}
+                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
                     {yearCourses.map((course) => (
@@ -163,6 +161,23 @@ export default function Today() {
                 </div>
               );
             })}
+
+            {coursesWithoutYear.length > 0 && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold text-foreground">بدون سنة دراسية</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+                  {coursesWithoutYear.map((course) => (
+                    <CourseCard
+                      key={course.id}
+                      course={course}
+                      stats={statsMap[course.id]}
+                      onClick={() => openDrawer(course)}
+                      selectedDate={selectedDate}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
 
 

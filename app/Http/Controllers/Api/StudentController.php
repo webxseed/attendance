@@ -20,6 +20,12 @@ class StudentController extends Controller
             ? Student::whereNotNull('archived_at')
             : Student::whereNull('archived_at');
 
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->integer('category_id'));
+        }
+
+        $query->with('category');
+
         if ($request->query('all')) {
             return $query->orderBy('full_name')->get();
         }
@@ -38,6 +44,7 @@ class StudentController extends Controller
             'full_name' => 'required|string|max:255',
             'external_code' => 'nullable|string|unique:students,external_code',
             'notes' => 'nullable|string',
+            'category_id' => 'nullable|exists:categories,id',
             'date_of_birth' => 'nullable|date',
             'identity_number' => 'nullable|string|unique:students,identity_number',
             'grade_level' => 'nullable|string|max:255',
@@ -51,7 +58,7 @@ class StudentController extends Controller
 
         $student = Student::create($validated);
 
-        return response()->json($student, 201);
+        return response()->json($student->load('category'), 201);
     }
 
     /**
@@ -61,7 +68,7 @@ class StudentController extends Controller
     {
         if (!$request->user()->isAdmin()) return response()->json(['message' => 'Unauthorized'], 403);
 
-        return $student->load(['courses']);
+        return $student->load(['courses', 'category']);
     }
 
     /**
@@ -75,6 +82,7 @@ class StudentController extends Controller
             'full_name' => 'sometimes|required|string|max:255',
             'external_code' => 'nullable|string|unique:students,external_code,' . $student->id,
             'notes' => 'nullable|string',
+            'category_id' => 'nullable|exists:categories,id',
             'date_of_birth' => 'nullable|date',
             'identity_number' => 'nullable|string|unique:students,identity_number,' . $student->id,
             'grade_level' => 'nullable|string|max:255',
@@ -88,7 +96,7 @@ class StudentController extends Controller
 
         $student->update($validated);
 
-        return response()->json($student);
+        return response()->json($student->load('category'));
     }
 
     /**

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Course, toColorTag } from "@/lib/api";
+import { Course, toColorTag, coursesApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useCourses,
@@ -13,11 +13,14 @@ import {
   useAssignStudent,
   useRemoveStudent,
   useCreateStudent,
+  useCreateTeacher,
   useDeleteCourse,
   useArchiveCourse,
   useUnarchiveCourse,
   useYears,
   useCreateYear,
+  useCategories,
+  useCreateCategory,
 } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -98,9 +101,12 @@ export default function Courses() {
   const [description, setDescription] = useState("");
   const [year, setYear] = useState<string>("");
   const [yearId, setYearId] = useState<string>("");
+  const [categoryId, setCategoryId] = useState<string>("");
+  const [newCategoryName, setNewCategoryName] = useState("");
   const [newYearTitle, setNewYearTitle] = useState("");
   const [newYearStart, setNewYearStart] = useState("");
   const [newYearEnd, setNewYearEnd] = useState("");
+  const [newTeacherName, setNewTeacherName] = useState("");
   const [scheduleDetails, setScheduleDetails] = useState<
     { day: string; from_time: string; to_time: string; note: string }[]
   >([]);
@@ -111,8 +117,11 @@ export default function Courses() {
   // API – list
   const { data: coursesPage, isLoading } = useCourses(showArchived);
   const { data: years } = useYears();
+  const { data: categories } = useCategories();
   const createMutation = useCreateCourse();
   const createYearMutation = useCreateYear();
+  const createCategoryMutation = useCreateCategory();
+  const createTeacherMutation = useCreateTeacher();
   const archiveCourseMutation = useArchiveCourse();
   const unarchiveCourseMutation = useUnarchiveCourse();
   const courses = coursesPage?.data ?? [];
@@ -143,6 +152,8 @@ export default function Courses() {
     setDescription("");
     setYear("");
     setYearId("");
+    setCategoryId("");
+    setNewTeacherName("");
     setScheduleDetails([]);
   };
 
@@ -168,6 +179,24 @@ export default function Courses() {
     }
   };
 
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) return;
+    try {
+      const category = await createCategoryMutation.mutateAsync({
+        name: newCategoryName.trim(),
+      });
+      setNewCategoryName("");
+      setCategoryId(category.id.toString());
+      toast({ title: "تم", description: "تمت إضافة التصنيف بنجاح" });
+    } catch (e: any) {
+      toast({
+        title: "خطأ",
+        description: e.response?.data?.message || "فشل إضافة التصنيف",
+        variant: "destructive",
+      });
+    }
+  };
+
   const addScheduleItem = () => {
     setScheduleDetails([...scheduleDetails, { day: "Sunday", from_time: "10:00", to_time: "12:00", note: "" }]);
   };
@@ -182,36 +211,39 @@ export default function Courses() {
     setScheduleDetails(newDetails);
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!title.trim()) return;
-    createMutation.mutate(
-      {
+    try {
+      const course = await createMutation.mutateAsync({
         title: title.trim(),
         color,
         description: description.trim() || undefined,
         year: year ? parseInt(year) : undefined,
         year_id: yearId ? parseInt(yearId) : undefined,
+        category_id: categoryId ? parseInt(categoryId) : undefined,
         schedule_details: scheduleDetails.length > 0 ? scheduleDetails : undefined,
-      },
-      {
-        onSuccess: () => {
-          toast({
-            title: "تمت الإضافة",
-            description: "تمت إضافة الدورة بنجاح",
-          });
-          resetForm();
-          setDialogOpen(false);
-        },
-        onError: (err: any) => {
-          toast({
-            title: "خطأ",
-            description:
-              err.response?.data?.message || "تعذّر إضافة الدورة",
-            variant: "destructive",
-          });
-        },
+      });
+
+      if (newTeacherName.trim()) {
+        const teacher = await createTeacherMutation.mutateAsync({
+          name: newTeacherName.trim(),
+        });
+        await coursesApi.assignTeacher(course.id, teacher.id);
       }
-    );
+
+      toast({
+        title: "تمت الإضافة",
+        description: "تمت إضافة الدورة بنجاح",
+      });
+      resetForm();
+      setDialogOpen(false);
+    } catch (err: any) {
+      toast({
+        title: "خطأ",
+        description: err.response?.data?.message || "تعذّر إضافة الدورة",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -271,6 +303,55 @@ export default function Courses() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>التصنيف</Label>
+                <div className="flex gap-2">
+                  <Select value={categoryId} onValueChange={setCategoryId}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="اختر التصنيف" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories?.map((c) => (
+                        <SelectItem key={c.id} value={c.id.toString()}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="icon">
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-3">
+                      <div className="space-y-2">
+                        <h4 className="font-medium text-xs leading-none">إضافة تصنيف جديد</h4>
+                        <Input
+                          placeholder="اسم التصنيف"
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                          className="h-8 text-xs"
+                        />
+                        <Button
+                          size="sm"
+                          className="w-full h-8 text-xs"
+                          onClick={() => handleCreateCategory()}
+                          disabled={createCategoryMutation.isPending}
+                        >
+                          {createCategoryMutation.isPending ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            "إضافة"
+                          )}
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -347,6 +428,15 @@ export default function Courses() {
                   placeholder="2026"
                   value={year}
                   onChange={(e) => setYear(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>معلم الدورة (اختياري)</Label>
+                <Input
+                  placeholder="اسم المعلم — يُنشأ تلقائياً عند الحفظ"
+                  value={newTeacherName}
+                  onChange={(e) => setNewTeacherName(e.target.value)}
                 />
               </div>
 
@@ -445,9 +535,13 @@ export default function Courses() {
                 <Button
                   onClick={handleCreate}
                   className="flex-1"
-                  disabled={createMutation.isPending || !title.trim()}
+                  disabled={
+                    createMutation.isPending ||
+                    createTeacherMutation.isPending ||
+                    !title.trim()
+                  }
                 >
-                  {createMutation.isPending ? (
+                  {createMutation.isPending || createTeacherMutation.isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     "حفظ"
@@ -514,6 +608,11 @@ export default function Courses() {
                       <p className="font-medium text-sm">{course.title}</p>
                       {course.archived_at && (
                         <Badge variant="secondary" className="text-[10px] h-4 px-1">مؤرشف</Badge>
+                      )}
+                      {course.category && (
+                        <Badge variant="outline" className="text-[10px] h-4 px-1">
+                          {course.category.name}
+                        </Badge>
                       )}
                       {course.academic_year && (
                         <Badge variant="secondary" className="text-[10px] h-4 px-1">
@@ -615,7 +714,11 @@ function CourseManageSheet({
   const { data: allTeachersPage } = useTeachers();
   const { data: allStudentsData } = useAllStudents();
   const allTeachers = allTeachersPage?.data ?? [];
-  const allStudents = allStudentsData ?? [];
+  // Only show students in this course's category (or uncategorized)
+  const allStudents = (allStudentsData ?? []).filter((s) => {
+    if (!course?.category_id) return true;
+    return !s.category_id || s.category_id === course.category_id;
+  });
 
   // Mutations
   const assignTeacher = useAssignTeacher();
@@ -626,6 +729,7 @@ function CourseManageSheet({
   const deleteCourse = useDeleteCourse();
   const archiveCourse = useArchiveCourse();
   const unarchiveCourse = useUnarchiveCourse();
+  const createTeacherMutation = useCreateTeacher();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
@@ -638,6 +742,9 @@ function CourseManageSheet({
   const [description, setDescription] = useState("");
   const [year, setYear] = useState("");
   const [yearId, setYearId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newTeacherName, setNewTeacherName] = useState("");
   const [scheduleDetails, setScheduleDetails] = useState<
     { day: string; from_time: string; to_time: string; note: string }[]
   >([]);
@@ -650,6 +757,7 @@ function CourseManageSheet({
       setDescription(course.description || "");
       setYear(course.year?.toString() || "");
       setYearId(course.year_id?.toString() || "");
+      setCategoryId(course.category_id?.toString() || "");
       setScheduleDetails(
         (course.schedule_details || []).map((d: any) => ({
           day: d.day,
@@ -670,7 +778,9 @@ function CourseManageSheet({
   const [createStudentDialogOpen, setCreateStudentDialogOpen] = useState(false);
   const createStudentMutation = useCreateStudent();
   const createYearMutation = useCreateYear();
+  const createCategoryMutation = useCreateCategory();
   const { data: years } = useYears();
+  const { data: categories } = useCategories();
 
   const [newYearTitle, setNewYearTitle] = useState("");
   const [newYearStart, setNewYearStart] = useState("");
@@ -693,6 +803,24 @@ function CourseManageSheet({
       toast({
         title: "خطأ",
         description: e.response?.data?.message || "فشل إضافة السنة",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) return;
+    try {
+      const category = await createCategoryMutation.mutateAsync({
+        name: newCategoryName.trim(),
+      });
+      setNewCategoryName("");
+      setCategoryId(category.id.toString());
+      toast({ title: "تم", description: "تمت إضافة التصنيف بنجاح" });
+    } catch (e: any) {
+      toast({
+        title: "خطأ",
+        description: e.response?.data?.message || "فشل إضافة التصنيف",
         variant: "destructive",
       });
     }
@@ -734,6 +862,7 @@ function CourseManageSheet({
       {
         ...newStudentData,
         date_of_birth: newStudentData.date_of_birth || undefined,
+        category_id: course?.category_id ?? undefined,
       },
       {
         onSuccess: (student) => {
@@ -767,6 +896,7 @@ function CourseManageSheet({
           description,
           year: year ? parseInt(year) : undefined,
           year_id: yearId ? parseInt(yearId) : undefined,
+          category_id: categoryId ? parseInt(categoryId) : null,
           schedule_details: scheduleDetails,
         },
       },
@@ -851,6 +981,24 @@ function CourseManageSheet({
           }),
       }
     );
+  };
+
+  const handleCreateAndAssignTeacher = async () => {
+    if (!newTeacherName.trim()) return;
+    try {
+      const teacher = await createTeacherMutation.mutateAsync({
+        name: newTeacherName.trim(),
+      });
+      await assignTeacher.mutateAsync({ courseId, teacherId: teacher.id });
+      setNewTeacherName("");
+      toast({ title: "تم التعيين", description: "تم إنشاء المعلم وتعيينه للدورة" });
+    } catch (err: any) {
+      toast({
+        title: "خطأ",
+        description: err.response?.data?.message || "تعذّر إنشاء المعلم",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleRemoveTeacher = (teacherId: number) => {
@@ -989,6 +1137,55 @@ function CourseManageSheet({
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>التصنيف</Label>
+                  <div className="flex gap-2">
+                    <Select value={categoryId} onValueChange={setCategoryId}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="اختر التصنيف" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories?.map((c) => (
+                          <SelectItem key={c.id} value={c.id.toString()}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="icon">
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-3">
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-xs leading-none">إضافة تصنيف جديد</h4>
+                          <Input
+                            placeholder="اسم التصنيف"
+                            value={newCategoryName}
+                            onChange={(e) => setNewCategoryName(e.target.value)}
+                            className="h-8 text-xs"
+                          />
+                          <Button
+                            size="sm"
+                            className="w-full h-8 text-xs"
+                            onClick={() => handleCreateCategory()}
+                            disabled={createCategoryMutation.isPending}
+                          >
+                            {createCategoryMutation.isPending ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              "إضافة"
+                            )}
+                          </Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -1209,38 +1406,63 @@ function CourseManageSheet({
               )}
 
               {/* Add teacher */}
-              {availableTeachers.length > 0 && (
+              <div className="space-y-3">
+                {availableTeachers.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handleAssignTeacher}
+                      disabled={!selectedTeacherId || assignTeacher.isPending}
+                      className="gap-1.5 flex-shrink-0"
+                    >
+                      {assignTeacher.isPending ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <UserPlus className="w-3.5 h-3.5" />
+                      )}
+                      تعيين
+                    </Button>
+                    <Select
+                      value={selectedTeacherId}
+                      onValueChange={setSelectedTeacherId}
+                    >
+                      <SelectTrigger className="flex-1 text-start">
+                        <SelectValue placeholder="اختر معلماً..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableTeachers.map((t) => (
+                          <SelectItem key={t.id} value={String(t.id)}>
+                            {t.user?.name ?? `معلم #${t.id}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
-                    onClick={handleAssignTeacher}
-                    disabled={!selectedTeacherId || assignTeacher.isPending}
+                    variant="outline"
+                    onClick={handleCreateAndAssignTeacher}
+                    disabled={!newTeacherName.trim() || createTeacherMutation.isPending || assignTeacher.isPending}
                     className="gap-1.5 flex-shrink-0"
                   >
-                    {assignTeacher.isPending ? (
+                    {createTeacherMutation.isPending || assignTeacher.isPending ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     ) : (
-                      <UserPlus className="w-3.5 h-3.5" />
+                      <Plus className="w-3.5 h-3.5" />
                     )}
-                    تعيين
+                    إضافة
                   </Button>
-                  <Select
-                    value={selectedTeacherId}
-                    onValueChange={setSelectedTeacherId}
-                  >
-                    <SelectTrigger className="flex-1 text-start">
-                      <SelectValue placeholder="اختر معلماً..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableTeachers.map((t) => (
-                        <SelectItem key={t.id} value={String(t.id)}>
-                          {t.user?.name ?? `معلم #${t.id}`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    placeholder="إضافة معلم بالاسم فقط..."
+                    value={newTeacherName}
+                    onChange={(e) => setNewTeacherName(e.target.value)}
+                    className="flex-1 h-9"
+                  />
                 </div>
-              )}
+              </div>
             </div>
 
             {/* ---- Students section ---- */}
@@ -1251,7 +1473,18 @@ function CourseManageSheet({
                 <Badge variant="secondary" className="text-xs">
                   {course?.students?.length ?? 0}
                 </Badge>
+                {course?.category && (
+                  <Badge variant="outline" className="text-xs">
+                    {course.category.name}
+                  </Badge>
+                )}
               </div>
+
+              {course?.category_id && (
+                <p className="text-xs text-muted-foreground mb-3 text-end">
+                  يظهر الطلاب من تصنيف الدورة فقط
+                </p>
+              )}
 
               {/* Assigned students */}
               {(course?.students ?? []).length > 0 ? (

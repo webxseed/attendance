@@ -29,6 +29,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/courses/{course}/archive', [CourseController::class, 'archive']);
     Route::post('/courses/{course}/unarchive', [CourseController::class, 'unarchive']);
     Route::apiResource('years', \App\Http\Controllers\Api\YearController::class);
+    Route::apiResource('categories', \App\Http\Controllers\Api\CategoryController::class)->except(['show']);
 
     // Course assignments (Admin)
     Route::post('/courses/{course}/teachers', [CourseController::class, 'assignTeacher']);

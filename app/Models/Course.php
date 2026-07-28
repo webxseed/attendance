@@ -9,7 +9,7 @@ class Course extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title', 'color', 'description', 'year', 'year_id', 'schedule_details', 'archived_at'];
+    protected $fillable = ['title', 'color', 'description', 'year', 'year_id', 'category_id', 'schedule_details', 'archived_at'];
 
     protected $casts = [
         'schedule_details' => 'array',
@@ -19,6 +19,11 @@ class Course extends Model
     public function academicYear()
     {
         return $this->belongsTo(Year::class, 'year_id');
+    }
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class);
     }
 
     public function teachers()

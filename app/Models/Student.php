@@ -13,6 +13,7 @@ class Student extends Model
         'full_name',
         'external_code',
         'notes',
+        'category_id',
         'date_of_birth',
         'identity_number',
         'grade_level',
@@ -28,6 +29,11 @@ class Student extends Model
     protected $casts = [
         'archived_at' => 'datetime',
     ];
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class);
+    }
 
     public function courses()
     {

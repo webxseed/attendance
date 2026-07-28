@@ -11,13 +11,21 @@ use Illuminate\Validation\Rule;
 class UserController extends Controller
 {
     /**
-     * List all users. (Admin only)
+     * List users. (Admin only)
+     * Defaults to admins only; pass ?role=teacher or ?role=all for other filters.
      */
     public function index(Request $request)
     {
         if (!$request->user()->isAdmin()) return response()->json(['message' => 'Unauthorized'], 403);
 
-        return User::with('teacher')->paginate(20);
+        $query = User::with('teacher');
+
+        $role = $request->query('role', 'admin');
+        if ($role !== 'all') {
+            $query->where('role', $role);
+        }
+
+        return $query->paginate(50);
     }
 
     /**
@@ -40,7 +48,7 @@ class UserController extends Controller
             'email' => $validated['email'] ?? null,
             'phone' => $validated['phone'],
             'role' => $validated['role'],
-            'password' => Hash::make($validated['password'] ?? 'password'), // Default password if not provided
+            'password' => Hash::make($validated['password'] ?? 'password'),
         ]);
 
         if ($user->role === 'teacher') {

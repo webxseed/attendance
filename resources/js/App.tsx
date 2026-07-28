@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import Today from "./pages/Today";
 import Courses from "./pages/Courses";
 import Users from "./pages/Users";
+import Teachers from "./pages/Teachers";
 import Students from "./pages/Students";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
@@ -73,7 +74,7 @@ function AppRoutes() {
       >
         <Route path="/today" element={<Today />} />
         <Route path="/courses" element={<Courses />} />
-        <Route path="/teachers" element={<Users />} />
+        <Route path="/teachers" element={<Teachers />} />
         <Route path="/users" element={<Users />} />
         <Route path="/students" element={<Students />} />
         <Route path="/reports" element={<Reports />} />

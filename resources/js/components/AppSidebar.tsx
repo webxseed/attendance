@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   LayoutDashboard,
+  Contact,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 const adminLinks = [
   { to: "/today", label: "لوحة اليوم", icon: LayoutDashboard },
   { to: "/courses", label: "الدورات", icon: BookOpen },
+  { to: "/teachers", label: "المعلمون", icon: Contact },
   { to: "/users", label: "المستخدمون", icon: Users },
   { to: "/students", label: "الطلاب", icon: GraduationCap },
   { to: "/reports", label: "التقارير", icon: BarChart3 },

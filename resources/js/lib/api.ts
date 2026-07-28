@@ -66,6 +66,11 @@ export interface Year {
   end_year: string | null;
 }
 
+export interface Category {
+  id: number;
+  name: string;
+}
+
 export interface Course {
   id: number;
   title: string;
@@ -73,7 +78,9 @@ export interface Course {
   description: string | null;
   year?: number | null;
   year_id?: number | null;
+  category_id?: number | null;
   academic_year?: Year | null;
+  category?: Category | null;
   schedule_details?: { day: string; from_time: string; to_time: string; note: string }[] | null;
   students_count?: number;
   teachers_count?: number;
@@ -87,6 +94,8 @@ export interface Student {
   full_name: string;
   external_code: string | null;
   notes: string | null;
+  category_id?: number | null;
+  category?: Category | null;
   date_of_birth?: string | null;
   identity_number?: string | null;
   grade_level?: string | null;
@@ -218,6 +227,18 @@ export const yearsApi = {
 };
 
 // ---------------------------------------------------------------------------
+// Categories API
+// ---------------------------------------------------------------------------
+
+export const categoriesApi = {
+  list: () => api.get<Category[]>("/categories"),
+  create: (data: { name: string }) => api.post<Category>("/categories", data),
+  update: (id: number, data: { name: string }) =>
+    api.put<Category>(`/categories/${id}`, data),
+  destroy: (id: number) => api.delete(`/categories/${id}`),
+};
+
+// ---------------------------------------------------------------------------
 // Courses API
 // ---------------------------------------------------------------------------
 
@@ -232,6 +253,7 @@ export const coursesApi = {
     description?: string;
     year?: number;
     year_id?: number;
+    category_id?: number | null;
     schedule_details?: any[];
   }) => api.post<Course>("/courses", data),
 
@@ -243,6 +265,7 @@ export const coursesApi = {
       description?: string;
       year?: number;
       year_id?: number;
+      category_id?: number | null;
       schedule_details?: any[];
     }
   ) => api.put<Course>(`/courses/${id}`, data),
@@ -274,7 +297,8 @@ export const coursesApi = {
 // ---------------------------------------------------------------------------
 
 export const usersApi = {
-  list: () => api.get<PaginatedResponse<User>>("/users"),
+  list: (role: "admin" | "teacher" | "all" = "admin") =>
+    api.get<PaginatedResponse<User>>(`/users?role=${role}`),
   show: (id: number) => api.get<User>(`/users/${id}`),
   create: (data: Partial<User>) => api.post<User>("/users", data),
   update: (id: number, data: Partial<User>) => api.put<User>(`/users/${id}`, data),
@@ -287,23 +311,26 @@ export const usersApi = {
 
 export const teachersApi = {
   list: () => api.get<PaginatedResponse<Teacher>>("/teachers"),
+  listAll: () => api.get<Teacher[]>("/teachers?all=true"),
 
   show: (id: number) => api.get<Teacher>(`/teachers/${id}`),
 
   create: (data: {
     name: string;
-    email: string;
-    phone?: string;
+    email?: string | null;
+    phone?: string | null;
   }) => api.post<Teacher>("/teachers", data),
 
   update: (
     id: number,
     data: {
       name?: string;
-      email?: string;
-      phone?: string;
+      email?: string | null;
+      phone?: string | null;
     }
   ) => api.put<Teacher>(`/teachers/${id}`, data),
+
+  destroy: (id: number) => api.delete(`/teachers/${id}`),
 };
 
 // ---------------------------------------------------------------------------
@@ -312,7 +339,12 @@ export const teachersApi = {
 
 export const studentsApi = {
   list: (showArchived = false) => api.get<PaginatedResponse<Student>>(`/students${showArchived ? "?archived=true" : ""}`),
-  listAll: (showArchived = false) => api.get<Student[]>(`/students?all=true${showArchived ? "&archived=true" : ""}`),
+  listAll: (showArchived = false, categoryId?: number | null) => {
+    const params = new URLSearchParams({ all: "true" });
+    if (showArchived) params.set("archived", "true");
+    if (categoryId) params.set("category_id", String(categoryId));
+    return api.get<Student[]>(`/students?${params.toString()}`);
+  },
 
   show: (id: number) => api.get<Student>(`/students/${id}`),
 
@@ -320,6 +352,7 @@ export const studentsApi = {
     full_name: string;
     external_code?: string;
     notes?: string;
+    category_id?: number | null;
     date_of_birth?: string;
     identity_number?: string;
     grade_level?: string;
@@ -337,6 +370,7 @@ export const studentsApi = {
       full_name?: string;
       external_code?: string;
       notes?: string;
+      category_id?: number | null;
       date_of_birth?: string;
       identity_number?: string;
       grade_level?: string;

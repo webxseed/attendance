@@ -12,6 +12,7 @@ import {
   attendanceApi,
   reportsApi,
   yearsApi,
+  categoriesApi,
   Course,
   CourseStats,
   DailyOverviewItem,
@@ -54,6 +55,43 @@ export function useUpdateYear() {
 }
 
 // ---------------------------------------------------------------------------
+// Categories
+// ---------------------------------------------------------------------------
+
+export function useCategories() {
+  return useQuery({
+    queryKey: ["categories"],
+    queryFn: () => categoriesApi.list().then((r) => r.data),
+  });
+}
+
+export function useCreateCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string }) =>
+      categoriesApi.create(data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["categories"] }),
+  });
+}
+
+export function useUpdateCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: { name: string } }) =>
+      categoriesApi.update(id, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["categories"] }),
+  });
+}
+
+export function useDeleteCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => categoriesApi.destroy(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["categories"] }),
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Courses
 // ---------------------------------------------------------------------------
 
@@ -81,6 +119,7 @@ export function useCreateCourse() {
       description?: string;
       year?: number;
       year_id?: number;
+      category_id?: number | null;
       schedule_details?: any[];
     }) => coursesApi.create(data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["courses"] }),
@@ -101,6 +140,7 @@ export function useUpdateCourse() {
         description?: string;
         year?: number;
         year_id?: number;
+        category_id?: number | null;
         schedule_details?: any[];
       };
     }) => coursesApi.update(id, data).then((r) => r.data),
@@ -187,10 +227,10 @@ export function useRemoveStudent() {
 // Users
 // ---------------------------------------------------------------------------
 
-export function useUsers() {
+export function useUsers(role: "admin" | "teacher" | "all" = "admin") {
   return useQuery({
-    queryKey: ["users"],
-    queryFn: () => usersApi.list().then((r) => r.data),
+    queryKey: ["users", role],
+    queryFn: () => usersApi.list(role).then((r) => r.data),
   });
 }
 
@@ -230,6 +270,46 @@ export function useTeachers() {
   });
 }
 
+export function useCreateTeacher() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; email?: string | null; phone?: string | null }) =>
+      teachersApi.create(data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["teachers"] });
+      qc.invalidateQueries({ queryKey: ["users"] });
+    },
+  });
+}
+
+export function useUpdateTeacher() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: { name?: string; email?: string | null; phone?: string | null };
+    }) => teachersApi.update(id, data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["teachers"] });
+      qc.invalidateQueries({ queryKey: ["users"] });
+    },
+  });
+}
+
+export function useDeleteTeacher() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => teachersApi.destroy(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["teachers"] });
+      qc.invalidateQueries({ queryKey: ["users"] });
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Students
 // ---------------------------------------------------------------------------
@@ -241,10 +321,10 @@ export function useStudents() {
   });
 }
 
-export function useAllStudents(showArchived = false) {
+export function useAllStudents(showArchived = false, categoryId?: number | null) {
   return useQuery({
-    queryKey: ["all-students", { archived: showArchived }],
-    queryFn: () => studentsApi.listAll(showArchived).then((r) => r.data),
+    queryKey: ["all-students", { archived: showArchived, categoryId: categoryId ?? null }],
+    queryFn: () => studentsApi.listAll(showArchived, categoryId).then((r) => r.data),
   });
 }
 
@@ -255,6 +335,7 @@ export function useCreateStudent() {
       full_name: string;
       external_code?: string;
       notes?: string;
+      category_id?: number | null;
       date_of_birth?: string;
       identity_number?: string;
       grade_level?: string;
@@ -284,6 +365,7 @@ export function useUpdateStudent() {
         full_name?: string;
         external_code?: string;
         notes?: string;
+        category_id?: number | null;
         date_of_birth?: string;
         identity_number?: string;
         grade_level?: string;

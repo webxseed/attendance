@@ -26,7 +26,7 @@ class CourseController extends Controller
             $query = $showArchived
                 ? Course::whereNotNull('archived_at')
                 : Course::whereNull('archived_at');
-            return $query->with(['academicYear', 'teachers.user'])->withCount(['students', 'teachers'])->paginate(20);
+            return $query->with(['academicYear', 'category', 'teachers.user'])->withCount(['students', 'teachers'])->paginate(20);
         }
 
         if ($user->isTeacher()) {
@@ -34,7 +34,7 @@ class CourseController extends Controller
             if (!$user->teacher) {
                 return response()->json(['message' => 'Teacher profile not found.'], 403);
             }
-            return $user->teacher->courses()->whereNull('archived_at')->with('academicYear')->withCount(['students'])->paginate(20);
+            return $user->teacher->courses()->whereNull('archived_at')->with(['academicYear', 'category'])->withCount(['students'])->paginate(20);
         }
 
         return response()->json(['message' => 'Unauthorized'], 403);
@@ -55,12 +55,13 @@ class CourseController extends Controller
             'description' => 'nullable|string',
             'year' => 'nullable|integer',
             'year_id' => 'nullable|exists:years,id',
+            'category_id' => 'nullable|exists:categories,id',
             'schedule_details' => 'nullable|array',
         ]);
 
         $course = Course::create($validated);
 
-        return response()->json($course->load('academicYear'), 201);
+        return response()->json($course->load(['academicYear', 'category']), 201);
     }
 
     /**
@@ -78,12 +79,13 @@ class CourseController extends Controller
             'description' => 'nullable|string',
             'year' => 'nullable|integer',
             'year_id' => 'nullable|exists:years,id',
+            'category_id' => 'nullable|exists:categories,id',
             'schedule_details' => 'nullable|array',
         ]);
 
         $course->update($validated);
 
-        return response()->json($course->load('academicYear'));
+        return response()->json($course->load(['academicYear', 'category']));
     }
 
     /**
@@ -102,7 +104,7 @@ class CourseController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        return $course->load(['teachers.user', 'students', 'academicYear']);
+        return $course->load(['teachers.user', 'students.category', 'academicYear', 'category']);
     }
 
     // --- Assignments (Admin Only) ---
@@ -134,6 +136,19 @@ class CourseController extends Controller
         if (!$request->user()->isAdmin()) abort(403);
 
         $request->validate(['student_id' => 'required|exists:students,id']);
+
+        $student = Student::findOrFail($request->student_id);
+
+        if ($course->category_id && $student->category_id && (int) $student->category_id !== (int) $course->category_id) {
+            return response()->json([
+                'message' => 'لا يمكن تسجيل طالب من تصنيف مختلف عن تصنيف الدورة',
+            ], 422);
+        }
+
+        // Inherit course category when student has none
+        if ($course->category_id && !$student->category_id) {
+            $student->update(['category_id' => $course->category_id]);
+        }
 
         $course->students()->syncWithoutDetaching([$request->student_id]);
 

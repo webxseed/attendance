@@ -1,9 +1,17 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { LogOut, Plus, Edit, Loader2 } from "lucide-react";
-import { useYears, useCreateYear, useUpdateYear } from "@/hooks/useApi";
-import { Year } from "@/lib/api";
+import { LogOut, Plus, Edit, Loader2, Trash2 } from "lucide-react";
+import {
+  useYears,
+  useCreateYear,
+  useUpdateYear,
+  useCategories,
+  useCreateCategory,
+  useUpdateCategory,
+  useDeleteCategory,
+} from "@/hooks/useApi";
+import { Year, Category } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -13,20 +21,31 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Settings() {
   const { user, logout } = useAuth();
   const isAdmin = user?.role === "admin";
+  const { toast } = useToast();
 
   const { data: years, isLoading: yearsLoading } = useYears();
   const createYearMutation = useCreateYear();
   const updateYearMutation = useUpdateYear();
+
+  const { data: categories, isLoading: categoriesLoading } = useCategories();
+  const createCategoryMutation = useCreateCategory();
+  const updateCategoryMutation = useUpdateCategory();
+  const deleteCategoryMutation = useDeleteCategory();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingYear, setEditingYear] = useState<Year | null>(null);
   const [title, setTitle] = useState("");
   const [startYear, setStartYear] = useState("");
   const [endYear, setEndYear] = useState("");
+
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [categoryName, setCategoryName] = useState("");
 
   const handleLogout = async () => {
     await logout();
@@ -68,7 +87,57 @@ export default function Settings() {
     }
   };
 
+  const handleOpenCreateCategory = () => {
+    setEditingCategory(null);
+    setCategoryName("");
+    setCategoryDialogOpen(true);
+  };
+
+  const handleOpenEditCategory = (category: Category) => {
+    setEditingCategory(category);
+    setCategoryName(category.name);
+    setCategoryDialogOpen(true);
+  };
+
+  const handleSaveCategory = async () => {
+    if (!categoryName.trim()) return;
+    try {
+      if (editingCategory) {
+        await updateCategoryMutation.mutateAsync({
+          id: editingCategory.id,
+          data: { name: categoryName.trim() },
+        });
+        toast({ title: "تم التحديث", description: "تم تحديث التصنيف" });
+      } else {
+        await createCategoryMutation.mutateAsync({ name: categoryName.trim() });
+        toast({ title: "تمت الإضافة", description: "تمت إضافة التصنيف" });
+      }
+      setCategoryDialogOpen(false);
+    } catch (e: any) {
+      toast({
+        title: "خطأ",
+        description: e.response?.data?.message || "تعذّر حفظ التصنيف",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteCategory = (category: Category) => {
+    if (!confirm(`هل تريد حذف التصنيف "${category.name}"؟`)) return;
+    deleteCategoryMutation.mutate(category.id, {
+      onSuccess: () => toast({ title: "تم الحذف", description: "تم حذف التصنيف" }),
+      onError: (err: any) =>
+        toast({
+          title: "خطأ",
+          description: err.response?.data?.message || "تعذّر الحذف",
+          variant: "destructive",
+        }),
+    });
+  };
+
   const isSaving = createYearMutation.isPending || updateYearMutation.isPending;
+  const isSavingCategory =
+    createCategoryMutation.isPending || updateCategoryMutation.isPending;
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -146,6 +215,58 @@ export default function Settings() {
         </div>
       )}
 
+      {/* Categories Management - Admin Only */}
+      {isAdmin && (
+        <div className="bg-card rounded-xl border p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold">تصنيفات الدورات</h2>
+            <Button size="sm" variant="outline" onClick={handleOpenCreateCategory}>
+              <Plus className="w-4 h-4 me-2" />
+              إضافة تصنيف
+            </Button>
+          </div>
+
+          <div className="space-y-3">
+            {categoriesLoading ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              categories?.map((category) => (
+                <div
+                  key={category.id}
+                  className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg border border-transparent hover:border-border transition-colors"
+                >
+                  <p className="font-medium">{category.name}</p>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleOpenEditCategory(category)}
+                    >
+                      <Edit className="w-4 h-4 text-muted-foreground" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteCategory(category)}
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+
+            {!categoriesLoading && categories?.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-4">
+                لا توجد تصنيفات مضافة
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Logout */}
       <Button
         variant="outline"
@@ -201,6 +322,34 @@ export default function Settings() {
             <Button onClick={handleSave} disabled={isSaving}>
               {isSaving && <Loader2 className="w-4 h-4 me-2 animate-spin" />}
               {editingYear ? "حفظ التغييرات" : "إضافة السنة"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit/Create Category Dialog */}
+      <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>
+              {editingCategory ? "تعديل التصنيف" : "إضافة تصنيف جديد"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="category-name">اسم التصنيف</Label>
+              <Input
+                id="category-name"
+                value={categoryName}
+                onChange={(e) => setCategoryName(e.target.value)}
+                placeholder="مثال: بنين / بنات"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSaveCategory} disabled={isSavingCategory || !categoryName.trim()}>
+              {isSavingCategory && <Loader2 className="w-4 h-4 me-2 animate-spin" />}
+              {editingCategory ? "حفظ التغييرات" : "إضافة التصنيف"}
             </Button>
           </DialogFooter>
         </DialogContent>
