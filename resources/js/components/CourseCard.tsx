@@ -48,17 +48,17 @@ export default function CourseCard({ course, stats, onClick, selectedDate }: Cou
         }`}
     >
       {/* Header */}
-      <div className="flex items-start justify-between mb-3 flex-col">
-        <h3 className="font-bold text-foreground group-hover:text-primary transition-colors text-lg">
+      <div className="flex items-center justify-between mb-1 flex-row p-2">
+        <h3 className="font-bold text-foreground group-hover:text-primary transition-colors text-lg p-0 m-0">
           {course.title}
         </h3>
         <div className="flex items-center gap-2">
           {course.teachers && course.teachers.length > 0 ? (
-            <span className="text-base ">
+            <span className="text-sm ">
               {course.teachers.map((t) => t.user?.name ?? `معلم #${t.id}`).join("، ")}
             </span>
           ) : course.teachers_count != null && course.teachers_count > 0 ? (
-            <span className="text-base ">
+            <span className="text-sm ">
               {course.teachers_count} معلم
             </span>
           ) : null}
@@ -89,19 +89,19 @@ export default function CourseCard({ course, stats, onClick, selectedDate }: Cou
 
         <div className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-success" />
-          <h3 className="text-base">حضور: <span className="">{present}</span></h3>
+          <h3 className="text-sm">حضور: <span className="">{present}</span></h3>
         </div>
         <div className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-destructive" />
-          <h3 className="text-base">غياب: <span className="">{unmarked}</span></h3>
+          <h3 className="text-sm">غياب: <span className="">{unmarked}</span></h3>
         </div>
 
       </div>
 
       {/* Progress */}
-      <div className="space-y-1.5">
+      <div className="space-y-1">
 
-        <Progress value={completionPct} className="h-1.5" />
+        <Progress value={completionPct} className="h-1" />
       </div>
     </button>
   );
