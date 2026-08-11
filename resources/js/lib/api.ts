@@ -243,7 +243,13 @@ export const categoriesApi = {
 // ---------------------------------------------------------------------------
 
 export const coursesApi = {
-  list: (showArchived = false) => api.get<PaginatedResponse<Course>>(`/courses${showArchived ? "?archived=true" : ""}`),
+  list: (showArchived = false, yearId?: number | null) => {
+    const params = new URLSearchParams();
+    if (showArchived) params.set("archived", "true");
+    if (yearId) params.set("year_id", String(yearId));
+    const query = params.toString();
+    return api.get<PaginatedResponse<Course>>(`/courses${query ? `?${query}` : ""}`);
+  },
 
   show: (id: number) => api.get<Course>(`/courses/${id}`),
 
@@ -421,8 +427,10 @@ export const attendanceApi = {
 // ---------------------------------------------------------------------------
 
 export const reportsApi = {
-  dailyOverview: (date: string) =>
-    api.get<DailyOverviewItem[]>(`/reports/daily/${date}`),
+  dailyOverview: (date: string, yearId?: number | null) =>
+    api.get<DailyOverviewItem[]>(`/reports/daily/${date}`, {
+      params: yearId ? { year_id: yearId } : undefined,
+    }),
 
   generate: (params: {
     course_id?: number;

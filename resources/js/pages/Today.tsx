@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Course, fmtDate } from "@/lib/api";
 import { useCourses, useTodayStats, useYears } from "@/hooks/useApi";
 import SummaryCards from "@/components/SummaryCards";
@@ -7,24 +7,59 @@ import CourseCard from "@/components/CourseCard";
 import AttendanceDrawer from "@/components/AttendanceDrawer";
 import FloatingActionButton from "@/components/FloatingActionButton";
 import { CalendarDays, Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function Today() {
   const today = fmtDate(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedYearId, setSelectedYearId] = useState("");
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [search] = useState("");
 
-  // Fetch courses and years
-  const { data: coursesPage, isLoading: coursesLoading } = useCourses();
+  // Fetch years, then load courses for the selected year only
   const { data: years, isLoading: yearsLoading } = useYears();
-  const courses = coursesPage?.data ?? [];
   const allYears = years ?? [];
+  const yearOptions = [...allYears].sort((a, b) => {
+    const aValue = Number(a.end_year ?? a.start_year ?? a.id) || a.id;
+    const bValue = Number(b.end_year ?? b.start_year ?? b.id) || b.id;
+    return bValue - aValue;
+  });
+  const selectedYearIdNumber = selectedYearId ? Number(selectedYearId) : undefined;
+  const selectedYear = allYears.find((year) => String(year.id) === selectedYearId);
+
+  useEffect(() => {
+    if (yearOptions.length === 0) {
+      if (selectedYearId) setSelectedYearId("");
+      return;
+    }
+
+    if (selectedYearId && yearOptions.some((year) => String(year.id) === selectedYearId)) {
+      return;
+    }
+
+    setSelectedYearId(String(yearOptions[0].id));
+  }, [selectedYearId, years]);
+
+  const { data: coursesPage, isLoading: coursesLoading } = useCourses(
+    false,
+    selectedYearIdNumber,
+    !!selectedYearIdNumber
+  );
+  const courses = coursesPage?.data ?? [];
 
   // Fetch attendance stats for the selected date
   const { statsMap, isLoading: statsLoading } = useTodayStats(
     courses,
-    selectedDate
+    selectedDate,
+    selectedYearIdNumber,
+    !!selectedYearIdNumber
   );
 
   // Search filter
@@ -65,13 +100,8 @@ export default function Today() {
     day: "numeric",
   });
 
-  const isLoading = coursesLoading || yearsLoading;
-  const coursesWithoutYear = filteredCourses.filter((c) => !c.year_id);
-
-  // Prefer the first year that has courses for the academic-year subtitle
-  const primaryYear =
-    allYears.find((year) => filteredCourses.some((c) => c.year_id === year.id)) ??
-    allYears[0];
+  const isLoading =
+    yearsLoading || (!!selectedYearIdNumber && (coursesLoading || statsLoading));
 
   return (
     <div className="space-y-2 pb-20 lg:pb-8 " >
@@ -89,21 +119,41 @@ export default function Today() {
               <h1 className="text-2xl font-extrabold text-primary">مدرسة موال</h1>
             </div>
 
-            {primaryYear?.start_year && primaryYear?.end_year && (
+            {selectedYear?.start_year && selectedYear?.end_year && (
               <p className="font-bold text-gray-700 mt-2">
-                السنة الدراسية {primaryYear.start_year}-{primaryYear.end_year}
+                السنة الدراسية {selectedYear.start_year}-{selectedYear.end_year}
               </p>
             )}
 
-            {primaryYear?.title && (
+            {selectedYear?.title && (
               <h3 className="text-base font-medium text-black">
-                {primaryYear.title}
+                {selectedYear.title}
               </h3>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <Select
+            value={selectedYearId}
+            onValueChange={(value) => {
+              setSelectedYearId(value);
+              setSelectedCourse(null);
+              setDrawerOpen(false);
+            }}
+            disabled={yearOptions.length === 0}
+          >
+            <SelectTrigger className="w-full sm:w-56 bg-card">
+              <SelectValue placeholder="اختر السنة الدراسية" />
+            </SelectTrigger>
+            <SelectContent>
+              {yearOptions.map((year) => (
+                <SelectItem key={year.id} value={year.id.toString()}>
+                  {year.name || year.title || `سنة #${year.id}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <SummaryCards {...totalStats} />
 
         </div>
@@ -127,46 +177,20 @@ export default function Today() {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Years Sections */}
-            {allYears.map((year) => {
-              const yearCourses = filteredCourses.filter(
-                (c) => c.year_id === year.id
-              );
-              if (yearCourses.length === 0) return null;
-
-              return (
-                <div key={year.id} className="space-y-4">
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">
-                      {year.name || year.title}
-                    </h2>
-                    {year.start_year && year.end_year && (
-                      <p className="text-sm text-muted-foreground">
-                        {year.start_year}-{year.end_year}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
-                    {yearCourses.map((course) => (
-                      <CourseCard
-                        key={course.id}
-                        course={course}
-                        stats={statsMap[course.id]}
-                        onClick={() => openDrawer(course)}
-                        selectedDate={selectedDate}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-
-            {coursesWithoutYear.length > 0 && (
+            {selectedYear && filteredCourses.length > 0 && (
               <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-foreground">بدون سنة دراسية</h2>
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">
+                    {selectedYear.name || selectedYear.title}
+                  </h2>
+                  {selectedYear.start_year && selectedYear.end_year && (
+                    <p className="text-sm text-muted-foreground">
+                      {selectedYear.start_year}-{selectedYear.end_year}
+                    </p>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
-                  {coursesWithoutYear.map((course) => (
+                  {filteredCourses.map((course) => (
                     <CourseCard
                       key={course.id}
                       course={course}
@@ -179,18 +203,16 @@ export default function Today() {
               </div>
             )}
 
-
-
             {filteredCourses.length === 0 && (
               <div className="text-center py-16 bg-card rounded-2xl border">
                 <CalendarDays className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
                 <p className="text-muted-foreground font-medium">
-                  لا توجد دورات اليوم
+                  {yearOptions.length === 0
+                    ? "لا توجد سنوات دراسية"
+                    : "لا توجد دورات في السنة المحددة"}
                 </p>
                 <p className="text-sm text-muted-foreground/70 mt-1">
-                  {search
-                    ? "لم يتم العثور على نتائج"
-                    : "لا توجد دورات مجدولة لهذا اليوم"}
+                  {search ? "لم يتم العثور على نتائج" : "اختر سنة أخرى من القائمة"}
                 </p>
               </div>
             )}

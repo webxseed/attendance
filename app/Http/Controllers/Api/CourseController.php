@@ -26,6 +26,9 @@ class CourseController extends Controller
             $query = $showArchived
                 ? Course::whereNotNull('archived_at')
                 : Course::whereNull('archived_at');
+            if ($request->filled('year_id')) {
+                $query->where('year_id', $request->integer('year_id'));
+            }
             return $query->with(['academicYear', 'category', 'teachers.user'])->withCount(['students', 'teachers'])->paginate(20);
         }
 
@@ -34,7 +37,11 @@ class CourseController extends Controller
             if (!$user->teacher) {
                 return response()->json(['message' => 'Teacher profile not found.'], 403);
             }
-            return $user->teacher->courses()->whereNull('archived_at')->with(['academicYear', 'category'])->withCount(['students'])->paginate(20);
+            $query = $user->teacher->courses()->whereNull('archived_at');
+            if ($request->filled('year_id')) {
+                $query->where('year_id', $request->integer('year_id'));
+            }
+            return $query->with(['academicYear', 'category'])->withCount(['students'])->paginate(20);
         }
 
         return response()->json(['message' => 'Unauthorized'], 403);

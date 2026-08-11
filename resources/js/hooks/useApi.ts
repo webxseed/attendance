@@ -95,10 +95,11 @@ export function useDeleteCategory() {
 // Courses
 // ---------------------------------------------------------------------------
 
-export function useCourses(showArchived = false) {
+export function useCourses(showArchived = false, yearId?: number | null, enabled = true) {
   return useQuery({
-    queryKey: ["courses", { archived: showArchived }],
-    queryFn: () => coursesApi.list(showArchived).then((r) => r.data),
+    queryKey: ["courses", { archived: showArchived, yearId: yearId ?? null }],
+    queryFn: () => coursesApi.list(showArchived, yearId).then((r) => r.data),
+    enabled,
   });
 }
 
@@ -474,10 +475,10 @@ export function useSaveAttendance() {
 // Reports / Daily Overview
 // ---------------------------------------------------------------------------
 
-export function useDailyOverview(date: string, enabled = true) {
+export function useDailyOverview(date: string, enabled = true, yearId?: number | null) {
   return useQuery({
-    queryKey: ["daily-overview", date],
-    queryFn: () => reportsApi.dailyOverview(date).then((r) => r.data),
+    queryKey: ["daily-overview", date, { yearId: yearId ?? null }],
+    queryFn: () => reportsApi.dailyOverview(date, yearId).then((r) => r.data),
     enabled: enabled && !!date,
     refetchInterval: 5000, // Poll every 5 seconds for realtime updates
   });
@@ -511,16 +512,16 @@ export function useReportGenerate(
 // Admin  → uses daily overview for stats
 // Teacher → fetches attendance per course
 
-export function useTodayStats(courses: Course[], date: string) {
+export function useTodayStats(courses: Course[], date: string, yearId?: number | null, enabled = true) {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
   // Admin path: single request for all courses
-  const overviewQuery = useDailyOverview(date, isAdmin);
+  const overviewQuery = useDailyOverview(date, isAdmin && enabled, yearId);
 
   // Teacher path: one request per course (teachers typically have 2-5 courses)
   const attendanceQueries = useQueries({
-    queries: !isAdmin
+    queries: !isAdmin && enabled
       ? courses.map((c) => ({
         queryKey: ["attendance", c.id, date],
         queryFn: () =>

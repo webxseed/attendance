@@ -20,8 +20,13 @@ class ReportController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        // Get all courses with student count
-        $courses = Course::withCount('students')->get();
+        $yearId = $request->integer('year_id') ?: null;
+
+        // Get courses with student count
+        $courses = Course::whereNull('archived_at')
+            ->when($yearId, fn ($query) => $query->where('year_id', $yearId))
+            ->withCount('students')
+            ->get();
 
         // Get sessions for this date
         $sessions = AttendanceSession::whereDate('date', $date)
