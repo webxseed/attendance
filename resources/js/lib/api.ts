@@ -257,6 +257,15 @@ export const coursesApi = {
     schedule_details?: any[];
   }) => api.post<Course>("/courses", data),
 
+  duplicateToYear: (
+    id: number,
+    data: {
+      year_id: number;
+      year?: number | null;
+      copy_students?: boolean;
+    }
+  ) => api.post<Course>(`/courses/${id}/duplicate-to-year`, data),
+
   update: (
     id: number,
     data: {

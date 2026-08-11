@@ -65,6 +65,47 @@ class CourseController extends Controller
     }
 
     /**
+     * Duplicate a course into another academic year (Admin only).
+     */
+    public function duplicateToYear(Request $request, Course $course)
+    {
+        if (!$request->user()->isAdmin()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'year_id' => 'required|exists:years,id',
+            'year' => 'nullable|integer',
+            'copy_students' => 'sometimes|boolean',
+        ]);
+
+        $newCourse = DB::transaction(function () use ($course, $validated, $request) {
+            $newCourse = $course->replicate(['archived_at']);
+            $newCourse->year_id = $validated['year_id'];
+            $newCourse->year = array_key_exists('year', $validated) ? $validated['year'] : $course->year;
+            $newCourse->archived_at = null;
+            $newCourse->save();
+
+            $teacherIds = $course->teachers()->pluck('teachers.id')->all();
+            $newCourse->teachers()->sync($teacherIds);
+
+            if ($request->boolean('copy_students')) {
+                $studentIds = $course->students()->pluck('students.id')->all();
+                $newCourse->students()->sync($studentIds);
+            }
+
+            return $newCourse;
+        });
+
+        return response()->json(
+            $newCourse
+                ->load(['academicYear', 'category', 'teachers.user'])
+                ->loadCount(['students', 'teachers']),
+            201
+        );
+    }
+
+    /**
      * Update course (Admin only).
      */
     public function update(Request $request, Course $course)

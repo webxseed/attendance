@@ -28,6 +28,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('courses', CourseController::class);
     Route::post('/courses/{course}/archive', [CourseController::class, 'archive']);
     Route::post('/courses/{course}/unarchive', [CourseController::class, 'unarchive']);
+    Route::post('/courses/{course}/duplicate-to-year', [CourseController::class, 'duplicateToYear']);
     Route::apiResource('years', \App\Http\Controllers\Api\YearController::class);
     Route::apiResource('categories', \App\Http\Controllers\Api\CategoryController::class)->except(['show']);
 

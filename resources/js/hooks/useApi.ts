@@ -126,6 +126,24 @@ export function useCreateCourse() {
   });
 }
 
+export function useDuplicateCourseToYear() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: {
+        year_id: number;
+        year?: number | null;
+        copy_students?: boolean;
+      };
+    }) => coursesApi.duplicateToYear(id, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["courses"] }),
+  });
+}
+
 export function useUpdateCourse() {
   const qc = useQueryClient();
   return useMutation({

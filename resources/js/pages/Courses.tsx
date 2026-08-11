@@ -17,6 +17,7 @@ import {
   useDeleteCourse,
   useArchiveCourse,
   useUnarchiveCourse,
+  useDuplicateCourseToYear,
   useYears,
   useCreateYear,
   useCategories,
@@ -27,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -77,6 +79,7 @@ import {
   Trash2,
   Archive,
   ArchiveRestore,
+  Copy,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -729,6 +732,7 @@ function CourseManageSheet({
   const deleteCourse = useDeleteCourse();
   const archiveCourse = useArchiveCourse();
   const unarchiveCourse = useUnarchiveCourse();
+  const duplicateCourse = useDuplicateCourseToYear();
   const createTeacherMutation = useCreateTeacher();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -745,6 +749,10 @@ function CourseManageSheet({
   const [categoryId, setCategoryId] = useState("");
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newTeacherName, setNewTeacherName] = useState("");
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [duplicateYearId, setDuplicateYearId] = useState("");
+  const [duplicateYear, setDuplicateYear] = useState("");
+  const [duplicateCopyStudents, setDuplicateCopyStudents] = useState(false);
   const [scheduleDetails, setScheduleDetails] = useState<
     { day: string; from_time: string; to_time: string; note: string }[]
   >([]);
@@ -786,7 +794,7 @@ function CourseManageSheet({
   const [newYearStart, setNewYearStart] = useState("");
   const [newYearEnd, setNewYearEnd] = useState("");
 
-  const handleCreateYear = async () => {
+  const handleCreateYear = async (target: "edit" | "duplicate" = "edit") => {
     if (!newYearTitle.trim() || !newYearStart.trim() || !newYearEnd.trim()) return;
     try {
       const newYear = await createYearMutation.mutateAsync({
@@ -797,7 +805,11 @@ function CourseManageSheet({
       setNewYearTitle("");
       setNewYearStart("");
       setNewYearEnd("");
-      setYearId(newYear.id.toString());
+      if (target === "duplicate") {
+        setDuplicateYearId(newYear.id.toString());
+      } else {
+        setYearId(newYear.id.toString());
+      }
       toast({ title: "تم", description: "تمت إضافة السنة بنجاح" });
     } catch (e: any) {
       toast({
@@ -909,6 +921,49 @@ function CourseManageSheet({
           toast({
             title: "خطأ",
             description: err.response?.data?.message || "تعذّر التحديث",
+            variant: "destructive",
+          });
+        },
+      }
+    );
+  };
+
+  const openDuplicateDialog = () => {
+    setDuplicateYearId("");
+    setDuplicateYear(course?.year ? String(course.year + 1) : "");
+    setDuplicateCopyStudents(false);
+    setDuplicateDialogOpen(true);
+  };
+
+  const handleDuplicateCourse = () => {
+    if (!duplicateYearId) {
+      toast({
+        title: "خطأ",
+        description: "يرجى اختيار السنة الجديدة",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    duplicateCourse.mutate(
+      {
+        id: courseId,
+        data: {
+          year_id: Number(duplicateYearId),
+          year: duplicateYear.trim() ? Number(duplicateYear) : null,
+          copy_students: duplicateCopyStudents,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "تم النسخ", description: "تم إنشاء الدورة للسنة الجديدة" });
+          setDuplicateDialogOpen(false);
+          onClose();
+        },
+        onError: (err: any) => {
+          toast({
+            title: "خطأ",
+            description: err.response?.data?.message || "تعذّر نسخ الدورة",
             variant: "destructive",
           });
         },
@@ -1598,7 +1653,20 @@ function CourseManageSheet({
                 </div>
               </div>
               {isAdmin && (
-                <div className="flex justify-end gap-2 mt-8">
+                <div className="flex flex-wrap justify-end gap-2 mt-8">
+                  <Button
+                    variant="outline"
+                    onClick={openDuplicateDialog}
+                    disabled={duplicateCourse.isPending}
+                    className="gap-2"
+                  >
+                    {duplicateCourse.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                    نسخ لسنة جديدة
+                  </Button>
                   {isArchived ? (
                     <Button
                       variant="outline"
@@ -1645,6 +1713,125 @@ function CourseManageSheet({
                   </Button>
                 </div>
               )}
+
+              {/* Duplicate Course Dialog */}
+              <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>نسخ الدورة لسنة جديدة</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-2">
+                    <div className="space-y-2">
+                      <Label>السنة الدراسية الجديدة</Label>
+                      <div className="flex gap-2">
+                        <Select value={duplicateYearId} onValueChange={setDuplicateYearId}>
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="اختر السنة" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {years?.map((y) => (
+                              <SelectItem key={y.id} value={y.id.toString()}>
+                                {y.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" size="icon">
+                              <Plus className="w-4 h-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64 p-3">
+                            <div className="space-y-2">
+                              <h4 className="font-medium text-xs leading-none">إضافة سنة جديدة</h4>
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input
+                                  placeholder="اللقب (مثال: فوج)"
+                                  value={newYearTitle}
+                                  onChange={(e) => setNewYearTitle(e.target.value)}
+                                  className="h-8 text-xs col-span-2"
+                                />
+                                <Input
+                                  placeholder="2026"
+                                  value={newYearStart}
+                                  onChange={(e) => setNewYearStart(e.target.value)}
+                                  className="h-8 text-xs"
+                                  type="number"
+                                  maxLength={4}
+                                />
+                                <Input
+                                  placeholder="2027"
+                                  value={newYearEnd}
+                                  onChange={(e) => setNewYearEnd(e.target.value)}
+                                  className="h-8 text-xs"
+                                  type="number"
+                                  maxLength={4}
+                                />
+                              </div>
+                              <Button
+                                size="sm"
+                                className="w-full h-8 text-xs"
+                                onClick={() => handleCreateYear("duplicate")}
+                                disabled={createYearMutation.isPending}
+                              >
+                                {createYearMutation.isPending ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  "إضافة"
+                                )}
+                              </Button>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>السنة (رقم - اختياري)</Label>
+                      <Input
+                        type="number"
+                        placeholder="2027"
+                        value={duplicateYear}
+                        onChange={(e) => setDuplicateYear(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 rounded-md border p-3">
+                      <Label htmlFor="copy-course-students" className="cursor-pointer">
+                        نسخ كل الطلاب
+                      </Label>
+                      <Checkbox
+                        id="copy-course-students"
+                        checked={duplicateCopyStudents}
+                        onCheckedChange={(checked) => setDuplicateCopyStudents(checked === true)}
+                      />
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setDuplicateDialogOpen(false)}
+                        className="flex-1"
+                      >
+                        إلغاء
+                      </Button>
+                      <Button
+                        onClick={handleDuplicateCourse}
+                        className="flex-1"
+                        disabled={duplicateCourse.isPending || !duplicateYearId}
+                      >
+                        {duplicateCourse.isPending ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          "نسخ"
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
 
               {/* Create Student Dialog */}
               <Dialog open={createStudentDialogOpen} onOpenChange={setCreateStudentDialogOpen}>
