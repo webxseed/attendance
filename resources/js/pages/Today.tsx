@@ -62,10 +62,13 @@ export default function Today() {
     !!selectedYearIdNumber
   );
 
-  // Search filter
-  const filteredCourses = search
+  // Search filter – pinned ("ثابت") courses come back for every year, listed first
+  const filteredCourses = (search
     ? courses.filter((c) => c.title.includes(search))
-    : courses;
+    : courses
+  )
+    .slice()
+    .sort((a, b) => Number(!!b.is_pinned) - Number(!!a.is_pinned));
 
   // Aggregate stats across all courses
   const totalStats = courses.reduce(

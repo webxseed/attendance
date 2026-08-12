@@ -24,7 +24,7 @@ class ReportController extends Controller
 
         // Get courses with student count
         $courses = Course::whereNull('archived_at')
-            ->when($yearId, fn ($query) => $query->where('year_id', $yearId))
+            ->when($yearId, fn ($query) => $query->forYear($yearId))
             ->withCount('students')
             ->get();
 

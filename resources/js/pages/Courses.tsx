@@ -18,6 +18,7 @@ import {
   useArchiveCourse,
   useUnarchiveCourse,
   useDuplicateCourseToYear,
+  useDuplicateCoursesToYear,
   useYears,
   useCreateYear,
   useCategories,
@@ -80,6 +81,8 @@ import {
   Archive,
   ArchiveRestore,
   Copy,
+  Pin,
+  PinOff,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -110,9 +113,17 @@ export default function Courses() {
   const [newYearStart, setNewYearStart] = useState("");
   const [newYearEnd, setNewYearEnd] = useState("");
   const [newTeacherName, setNewTeacherName] = useState("");
+  const [isPinned, setIsPinned] = useState(false);
   const [scheduleDetails, setScheduleDetails] = useState<
     { day: string; from_time: string; to_time: string; note: string }[]
   >([]);
+
+  // Bulk duplicate state
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkYearId, setBulkYearId] = useState("");
+  const [bulkYear, setBulkYear] = useState("");
+  const [bulkCopyStudents, setBulkCopyStudents] = useState(false);
 
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -122,6 +133,8 @@ export default function Courses() {
   const { data: years } = useYears();
   const { data: categories } = useCategories();
   const createMutation = useCreateCourse();
+  const updateCourseMutation = useUpdateCourse();
+  const duplicateCoursesMutation = useDuplicateCoursesToYear();
   const createYearMutation = useCreateYear();
   const createCategoryMutation = useCreateCategory();
   const createTeacherMutation = useCreateTeacher();
@@ -145,9 +158,83 @@ export default function Courses() {
     });
   };
 
+  const handleTogglePinned = (e: React.MouseEvent, course: Course) => {
+    e.stopPropagation();
+    updateCourseMutation.mutate(
+      { id: course.id, data: { is_pinned: !course.is_pinned } },
+      {
+        onSuccess: () =>
+          toast({
+            title: course.is_pinned ? "تم إلغاء التثبيت" : "تم التثبيت",
+            description: course.is_pinned
+              ? "لن تظهر الدورة إلا في سنتها الدراسية"
+              : "ستظهر الدورة في كل السنوات الدراسية",
+          }),
+        onError: (err: any) =>
+          toast({
+            title: "خطأ",
+            description: err.response?.data?.message || "تعذّر تحديث التثبيت",
+            variant: "destructive",
+          }),
+      }
+    );
+  };
+
   const filtered = search
     ? courses.filter((c) => c.title.includes(search))
     : courses;
+
+  // --- Bulk selection ---
+  const toggleSelected = (courseId: number) => {
+    setSelectedIds((prev) =>
+      prev.includes(courseId)
+        ? prev.filter((id) => id !== courseId)
+        : [...prev, courseId]
+    );
+  };
+
+  const visibleIds = filtered.map((c) => c.id);
+  const allVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allVisibleSelected ? [] : visibleIds);
+  };
+
+  const openBulkDialog = () => {
+    setBulkYearId("");
+    setBulkYear("");
+    setBulkCopyStudents(false);
+    setBulkDialogOpen(true);
+  };
+
+  const handleBulkDuplicate = () => {
+    if (!bulkYearId || selectedIds.length === 0) return;
+    duplicateCoursesMutation.mutate(
+      {
+        course_ids: selectedIds,
+        year_id: Number(bulkYearId),
+        year: bulkYear.trim() ? Number(bulkYear) : null,
+        copy_students: bulkCopyStudents,
+      },
+      {
+        onSuccess: (res) => {
+          toast({
+            title: "تم النسخ",
+            description: `تم نسخ ${res.count} دورة للسنة الجديدة`,
+          });
+          setBulkDialogOpen(false);
+          setSelectedIds([]);
+        },
+        onError: (err: any) =>
+          toast({
+            title: "خطأ",
+            description: err.response?.data?.message || "تعذّر نسخ الدورات",
+            variant: "destructive",
+          }),
+      }
+    );
+  };
 
   const resetForm = () => {
     setTitle("");
@@ -157,10 +244,11 @@ export default function Courses() {
     setYearId("");
     setCategoryId("");
     setNewTeacherName("");
+    setIsPinned(false);
     setScheduleDetails([]);
   };
 
-  const handleCreateYear = async () => {
+  const handleCreateYear = async (target: "create" | "bulk" = "create") => {
     if (!newYearTitle.trim() || !newYearStart.trim() || !newYearEnd.trim()) return;
     try {
       const newYear = await createYearMutation.mutateAsync({
@@ -171,7 +259,11 @@ export default function Courses() {
       setNewYearTitle("");
       setNewYearStart("");
       setNewYearEnd("");
-      setYearId(newYear.id.toString());
+      if (target === "bulk") {
+        setBulkYearId(newYear.id.toString());
+      } else {
+        setYearId(newYear.id.toString());
+      }
       toast({ title: "تم", description: "تمت إضافة السنة بنجاح" });
     } catch (e: any) {
       toast({
@@ -225,6 +317,7 @@ export default function Courses() {
         year_id: yearId ? parseInt(yearId) : undefined,
         category_id: categoryId ? parseInt(categoryId) : undefined,
         schedule_details: scheduleDetails.length > 0 ? scheduleDetails : undefined,
+        is_pinned: isPinned,
       });
 
       if (newTeacherName.trim()) {
@@ -443,6 +536,23 @@ export default function Courses() {
                 />
               </div>
 
+              <div className="flex items-start justify-end gap-2 rounded-md border p-3">
+                <div className="text-end">
+                  <Label htmlFor="create-course-pinned" className="cursor-pointer">
+                    دورة ثابتة
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    تظهر في صفحة اليوم مهما كانت السنة المختارة
+                  </p>
+                </div>
+                <Checkbox
+                  id="create-course-pinned"
+                  className="mt-1"
+                  checked={isPinned}
+                  onCheckedChange={(checked) => setIsPinned(checked === true)}
+                />
+              </div>
+
               <div className="space-y-2">
                 <Label>الأيام والأوقات</Label>
                 <div className="space-y-2">
@@ -560,7 +670,10 @@ export default function Courses() {
             variant={showArchived ? "default" : "outline"}
             size="sm"
             className="gap-2"
-            onClick={() => setShowArchived(!showArchived)}
+            onClick={() => {
+              setShowArchived(!showArchived);
+              setSelectedIds([]);
+            }}
           >
             <Archive className="w-4 h-4" />
             {showArchived ? "إخفاء المؤرشفة" : "المؤرشفة"}
@@ -577,6 +690,156 @@ export default function Courses() {
         </div>
       </div>
 
+      {/* Bulk actions bar */}
+      {isAdmin && selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-primary/5 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={openBulkDialog}
+              size="sm"
+              className="gap-2"
+              disabled={duplicateCoursesMutation.isPending}
+            >
+              {duplicateCoursesMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Copy className="w-4 h-4" />
+              )}
+              نسخ لسنة جديدة
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds([])}>
+              إلغاء التحديد
+            </Button>
+          </div>
+          <p className="text-sm font-medium">
+            تم اختيار {selectedIds.length} دورة
+          </p>
+        </div>
+      )}
+
+      {/* Bulk duplicate dialog */}
+      <Dialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>نسخ الدورات المحددة لسنة جديدة</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <p className="text-sm text-muted-foreground text-end">
+              سيتم نسخ {selectedIds.length} دورة مع معلميها
+            </p>
+
+            <div className="space-y-2">
+              <Label>السنة الدراسية الجديدة</Label>
+              <div className="flex gap-2">
+                <Select value={bulkYearId} onValueChange={setBulkYearId}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="اختر السنة" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {years?.map((y) => (
+                      <SelectItem key={y.id} value={y.id.toString()}>
+                        {y.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="icon">
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-3">
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-xs leading-none">إضافة سنة جديدة</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          placeholder="اللقب (مثال: فوج)"
+                          value={newYearTitle}
+                          onChange={(e) => setNewYearTitle(e.target.value)}
+                          className="h-8 text-xs col-span-2"
+                        />
+                        <Input
+                          placeholder="2026"
+                          value={newYearStart}
+                          onChange={(e) => setNewYearStart(e.target.value)}
+                          className="h-8 text-xs"
+                          type="number"
+                          maxLength={4}
+                        />
+                        <Input
+                          placeholder="2027"
+                          value={newYearEnd}
+                          onChange={(e) => setNewYearEnd(e.target.value)}
+                          className="h-8 text-xs"
+                          type="number"
+                          maxLength={4}
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        className="w-full h-8 text-xs"
+                        onClick={() => handleCreateYear("bulk")}
+                        disabled={createYearMutation.isPending}
+                      >
+                        {createYearMutation.isPending ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          "إضافة"
+                        )}
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>السنة (رقم - اختياري)</Label>
+              <Input
+                type="number"
+                placeholder="2027"
+                value={bulkYear}
+                onChange={(e) => setBulkYear(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 rounded-md border p-3">
+              <Label htmlFor="bulk-copy-students" className="cursor-pointer">
+                نسخ كل الطلاب
+              </Label>
+              <Checkbox
+                id="bulk-copy-students"
+                checked={bulkCopyStudents}
+                onCheckedChange={(checked) => setBulkCopyStudents(checked === true)}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setBulkDialogOpen(false)}
+                className="flex-1"
+              >
+                إلغاء
+              </Button>
+              <Button
+                onClick={handleBulkDuplicate}
+                className="flex-1"
+                disabled={duplicateCoursesMutation.isPending || !bulkYearId}
+              >
+                {duplicateCoursesMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  "نسخ"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Course list */}
       {isLoading ? (
         <div className="flex items-center justify-center py-16">
@@ -584,11 +847,20 @@ export default function Courses() {
         </div>
       ) : (
         <div className="bg-card rounded-xl border overflow-hidden">
-          <div className={`grid ${isAdmin ? "grid-cols-[1fr_auto_auto_auto_auto]" : "grid-cols-[1fr_auto_auto_auto]"} gap-4 px-5 py-3 border-b bg-muted/30 text-xs font-semibold text-muted-foreground`}>
+          <div className={`grid ${isAdmin ? "grid-cols-[auto_1fr_auto_auto_auto_auto_auto]" : "grid-cols-[1fr_auto_auto_auto]"} gap-4 px-5 py-3 border-b bg-muted/30 text-xs font-semibold text-muted-foreground`}>
+            {isAdmin && (
+              <Checkbox
+                checked={allVisibleSelected}
+                onCheckedChange={toggleSelectAll}
+                aria-label="تحديد كل الدورات"
+                disabled={filtered.length === 0}
+              />
+            )}
             <span className="text-start">اسم الدورة</span>
             <span>اللون</span>
             <span>المعلمون</span>
             <span>الطلاب</span>
+            {isAdmin && <span></span>}
             {isAdmin && <span></span>}
           </div>
           {filtered.map((course) => {
@@ -596,8 +868,15 @@ export default function Courses() {
             return (
               <div
                 key={course.id}
-                className={`w-full grid ${isAdmin ? "grid-cols-[1fr_auto_auto_auto_auto]" : "grid-cols-[1fr_auto_auto_auto]"} gap-4 px-5 py-4 border-b last:border-b-0 hover:bg-muted/20 transition-colors items-center ${course.archived_at ? "opacity-60" : ""}`}
+                className={`w-full grid ${isAdmin ? "grid-cols-[auto_1fr_auto_auto_auto_auto_auto]" : "grid-cols-[1fr_auto_auto_auto]"} gap-4 px-5 py-4 border-b last:border-b-0 hover:bg-muted/20 transition-colors items-center ${course.archived_at ? "opacity-60" : ""}`}
               >
+                {isAdmin && (
+                  <Checkbox
+                    checked={selectedIds.includes(course.id)}
+                    onCheckedChange={() => toggleSelected(course.id)}
+                    aria-label={`تحديد ${course.title}`}
+                  />
+                )}
                 <button
                   className="flex items-center gap-3 text-start min-w-0"
                   onClick={() => setManageCourseId(course.id)}
@@ -611,6 +890,12 @@ export default function Courses() {
                       <p className="font-medium text-sm">{course.title}</p>
                       {course.archived_at && (
                         <Badge variant="secondary" className="text-[10px] h-4 px-1">مؤرشف</Badge>
+                      )}
+                      {course.is_pinned && (
+                        <Badge className="text-[10px] h-4 px-1 gap-1">
+                          <Pin className="w-2.5 h-2.5" />
+                          ثابت
+                        </Badge>
                       )}
                       {course.category && (
                         <Badge variant="outline" className="text-[10px] h-4 px-1">
@@ -648,6 +933,22 @@ export default function Courses() {
                   <GraduationCap className="w-3.5 h-3.5" />
                   <span>{course.students_count ?? 0}</span>
                 </div>
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={`h-8 w-8 ${course.is_pinned ? "text-primary" : "text-muted-foreground hover:text-primary"}`}
+                    onClick={(e) => handleTogglePinned(e, course)}
+                    disabled={updateCourseMutation.isPending}
+                    title={course.is_pinned ? "إلغاء التثبيت" : "تثبيت الدورة (تظهر في كل السنوات)"}
+                  >
+                    {course.is_pinned ? (
+                      <PinOff className="w-3.5 h-3.5" />
+                    ) : (
+                      <Pin className="w-3.5 h-3.5" />
+                    )}
+                  </Button>
+                )}
                 {isAdmin && (
                   course.archived_at ? (
                     <Button
@@ -749,6 +1050,7 @@ function CourseManageSheet({
   const [categoryId, setCategoryId] = useState("");
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newTeacherName, setNewTeacherName] = useState("");
+  const [isPinned, setIsPinned] = useState(false);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [duplicateYearId, setDuplicateYearId] = useState("");
   const [duplicateYear, setDuplicateYear] = useState("");
@@ -766,6 +1068,7 @@ function CourseManageSheet({
       setYear(course.year?.toString() || "");
       setYearId(course.year_id?.toString() || "");
       setCategoryId(course.category_id?.toString() || "");
+      setIsPinned(!!course.is_pinned);
       setScheduleDetails(
         (course.schedule_details || []).map((d: any) => ({
           day: d.day,
@@ -910,6 +1213,7 @@ function CourseManageSheet({
           year_id: yearId ? parseInt(yearId) : undefined,
           category_id: categoryId ? parseInt(categoryId) : null,
           schedule_details: scheduleDetails,
+          is_pinned: isPinned,
         },
       },
       {
@@ -1398,6 +1702,22 @@ function CourseManageSheet({
                       إضافة موعد
                     </Button>
                   </div>
+                </div>
+                <div className="flex items-start justify-end gap-2 rounded-md border bg-card p-3">
+                  <div className="text-end">
+                    <Label htmlFor="edit-course-pinned" className="cursor-pointer">
+                      دورة ثابتة
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      تظهر في صفحة اليوم مهما كانت السنة المختارة
+                    </p>
+                  </div>
+                  <Checkbox
+                    id="edit-course-pinned"
+                    className="mt-1"
+                    checked={isPinned}
+                    onCheckedChange={(checked) => setIsPinned(checked === true)}
+                  />
                 </div>
                 <div className="flex gap-2">
                   <Button

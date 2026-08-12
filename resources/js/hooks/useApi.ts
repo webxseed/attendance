@@ -122,6 +122,7 @@ export function useCreateCourse() {
       year_id?: number;
       category_id?: number | null;
       schedule_details?: any[];
+      is_pinned?: boolean;
     }) => coursesApi.create(data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["courses"] }),
   });
@@ -145,6 +146,19 @@ export function useDuplicateCourseToYear() {
   });
 }
 
+export function useDuplicateCoursesToYear() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      course_ids: number[];
+      year_id: number;
+      year?: number | null;
+      copy_students?: boolean;
+    }) => coursesApi.duplicateManyToYear(data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["courses"] }),
+  });
+}
+
 export function useUpdateCourse() {
   const qc = useQueryClient();
   return useMutation({
@@ -161,6 +175,7 @@ export function useUpdateCourse() {
         year_id?: number;
         category_id?: number | null;
         schedule_details?: any[];
+        is_pinned?: boolean;
       };
     }) => coursesApi.update(id, data).then((r) => r.data),
     onSuccess: (_data, { id }) => {

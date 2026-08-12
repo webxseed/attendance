@@ -25,6 +25,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
 
     // Courses
+    Route::post('/courses/duplicate-to-year', [CourseController::class, 'duplicateManyToYear']);
     Route::apiResource('courses', CourseController::class);
     Route::post('/courses/{course}/archive', [CourseController::class, 'archive']);
     Route::post('/courses/{course}/unarchive', [CourseController::class, 'unarchive']);

@@ -27,7 +27,7 @@ class CourseController extends Controller
                 ? Course::whereNotNull('archived_at')
                 : Course::whereNull('archived_at');
             if ($request->filled('year_id')) {
-                $query->where('year_id', $request->integer('year_id'));
+                $query->forYear($request->integer('year_id'));
             }
             return $query->with(['academicYear', 'category', 'teachers.user'])->withCount(['students', 'teachers'])->paginate(20);
         }
@@ -39,7 +39,7 @@ class CourseController extends Controller
             }
             $query = $user->teacher->courses()->whereNull('archived_at');
             if ($request->filled('year_id')) {
-                $query->where('year_id', $request->integer('year_id'));
+                $query->forYear($request->integer('year_id'));
             }
             return $query->with(['academicYear', 'category'])->withCount(['students'])->paginate(20);
         }
@@ -64,6 +64,7 @@ class CourseController extends Controller
             'year_id' => 'nullable|exists:years,id',
             'category_id' => 'nullable|exists:categories,id',
             'schedule_details' => 'nullable|array',
+            'is_pinned' => 'sometimes|boolean',
         ]);
 
         $course = Course::create($validated);
@@ -86,23 +87,12 @@ class CourseController extends Controller
             'copy_students' => 'sometimes|boolean',
         ]);
 
-        $newCourse = DB::transaction(function () use ($course, $validated, $request) {
-            $newCourse = $course->replicate(['archived_at']);
-            $newCourse->year_id = $validated['year_id'];
-            $newCourse->year = array_key_exists('year', $validated) ? $validated['year'] : $course->year;
-            $newCourse->archived_at = null;
-            $newCourse->save();
-
-            $teacherIds = $course->teachers()->pluck('teachers.id')->all();
-            $newCourse->teachers()->sync($teacherIds);
-
-            if ($request->boolean('copy_students')) {
-                $studentIds = $course->students()->pluck('students.id')->all();
-                $newCourse->students()->sync($studentIds);
-            }
-
-            return $newCourse;
-        });
+        $newCourse = DB::transaction(fn () => $this->replicateCourseToYear(
+            $course,
+            $validated['year_id'],
+            array_key_exists('year', $validated) ? $validated['year'] : $course->year,
+            $request->boolean('copy_students')
+        ));
 
         return response()->json(
             $newCourse
@@ -110,6 +100,67 @@ class CourseController extends Controller
                 ->loadCount(['students', 'teachers']),
             201
         );
+    }
+
+    /**
+     * Duplicate several courses into another academic year at once (Admin only).
+     */
+    public function duplicateManyToYear(Request $request)
+    {
+        if (!$request->user()->isAdmin()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'course_ids' => 'required|array|min:1',
+            'course_ids.*' => 'integer|exists:courses,id',
+            'year_id' => 'required|exists:years,id',
+            'year' => 'nullable|integer',
+            'copy_students' => 'sometimes|boolean',
+        ]);
+
+        $courses = Course::whereIn('id', $validated['course_ids'])->get();
+        $copyStudents = $request->boolean('copy_students');
+
+        $newCourses = DB::transaction(function () use ($courses, $validated, $copyStudents) {
+            return $courses->map(fn (Course $course) => $this->replicateCourseToYear(
+                $course,
+                $validated['year_id'],
+                $validated['year'] ?? $course->year,
+                $copyStudents
+            ));
+        });
+
+        return response()->json([
+            'message' => 'تم نسخ الدورات بنجاح',
+            'count' => $newCourses->count(),
+            'courses' => $newCourses
+                ->load(['academicYear', 'category', 'teachers.user'])
+                ->loadCount(['students', 'teachers']),
+        ], 201);
+    }
+
+    /**
+     * Copy a course into another academic year, carrying its teachers
+     * and – optionally – its students.
+     */
+    private function replicateCourseToYear(Course $course, $yearId, $year, bool $copyStudents): Course
+    {
+        $newCourse = $course->replicate(['archived_at']);
+        $newCourse->year_id = $yearId;
+        $newCourse->year = $year;
+        $newCourse->archived_at = null;
+        // A pinned course already shows in every year – don't pin the copy too.
+        $newCourse->is_pinned = false;
+        $newCourse->save();
+
+        $newCourse->teachers()->sync($course->teachers()->pluck('teachers.id')->all());
+
+        if ($copyStudents) {
+            $newCourse->students()->sync($course->students()->pluck('students.id')->all());
+        }
+
+        return $newCourse;
     }
 
     /**
@@ -129,6 +180,7 @@ class CourseController extends Controller
             'year_id' => 'nullable|exists:years,id',
             'category_id' => 'nullable|exists:categories,id',
             'schedule_details' => 'nullable|array',
+            'is_pinned' => 'sometimes|boolean',
         ]);
 
         $course->update($validated);

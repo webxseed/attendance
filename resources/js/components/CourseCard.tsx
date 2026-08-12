@@ -1,6 +1,6 @@
 import { Course, CourseStats, toColorTag } from "@/lib/api";
 import { Progress } from "@/components/ui/progress";
-import { Users, Clock } from "lucide-react";
+import { Users, Clock, Pin } from "lucide-react";
 
 const daysTranslation: Record<string, string> = {
   Sunday: "الأحد",
@@ -49,7 +49,10 @@ export default function CourseCard({ course, stats, onClick, selectedDate }: Cou
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-1 flex-row p-2">
-        <h3 className="font-bold text-foreground group-hover:text-primary transition-colors text-lg p-0 m-0">
+        <h3 className="font-bold text-foreground group-hover:text-primary transition-colors text-lg p-0 m-0 flex items-center gap-1.5">
+          {course.is_pinned && (
+            <Pin className="w-4 h-4 text-primary flex-shrink-0" aria-label="دورة ثابتة" />
+          )}
           {course.title}
         </h3>
         <div className="flex items-center gap-2">

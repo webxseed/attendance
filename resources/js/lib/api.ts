@@ -87,6 +87,8 @@ export interface Course {
   teachers?: Teacher[];
   students?: Student[];
   archived_at?: string | null;
+  /** Pinned ("ثابت") courses show on the Today page for every academic year */
+  is_pinned?: boolean;
 }
 
 export interface Student {
@@ -261,6 +263,7 @@ export const coursesApi = {
     year_id?: number;
     category_id?: number | null;
     schedule_details?: any[];
+    is_pinned?: boolean;
   }) => api.post<Course>("/courses", data),
 
   duplicateToYear: (
@@ -272,6 +275,17 @@ export const coursesApi = {
     }
   ) => api.post<Course>(`/courses/${id}/duplicate-to-year`, data),
 
+  duplicateManyToYear: (data: {
+    course_ids: number[];
+    year_id: number;
+    year?: number | null;
+    copy_students?: boolean;
+  }) =>
+    api.post<{ message: string; count: number; courses: Course[] }>(
+      "/courses/duplicate-to-year",
+      data
+    ),
+
   update: (
     id: number,
     data: {
@@ -282,6 +296,7 @@ export const coursesApi = {
       year_id?: number;
       category_id?: number | null;
       schedule_details?: any[];
+      is_pinned?: boolean;
     }
   ) => api.put<Course>(`/courses/${id}`, data),
 
