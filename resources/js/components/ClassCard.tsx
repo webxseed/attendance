@@ -1,6 +1,6 @@
-import { Course, CourseStats, toColorTag } from "@/lib/api";
+import { CourseClass, CourseStats, toColorTag } from "@/lib/api";
 import { Progress } from "@/components/ui/progress";
-import { Users, Clock, Pin } from "lucide-react";
+import { Pin } from "lucide-react";
 
 const daysTranslation: Record<string, string> = {
   Sunday: "الأحد",
@@ -12,26 +12,31 @@ const daysTranslation: Record<string, string> = {
   Saturday: "السبت",
 };
 
-interface CourseCardProps {
-  course: Course;
+interface ClassCardProps {
+  courseClass: CourseClass;
   stats?: CourseStats;
   onClick: () => void;
   selectedDate?: string;
 }
 
-export default function CourseCard({ course, stats, onClick, selectedDate }: CourseCardProps) {
-  const colorTag = toColorTag(course.color);
+export default function ClassCard({
+  courseClass,
+  stats,
+  onClick,
+  selectedDate,
+}: ClassCardProps) {
+  const colorTag = toColorTag(courseClass.course?.color);
 
-  const total = stats?.total ?? course.students_count ?? 0;
+  const total = stats?.total ?? courseClass.students_count ?? 0;
 
-  // Check if course is scheduled for the selected date
+  // Check if the class is scheduled for the selected date
   const dayName = selectedDate
     ? new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "long" })
     : "";
-  const todaySchedule = course.schedule_details?.find((s) => s.day === dayName);
+  const todaySchedule = courseClass.schedule_details?.find((s) => s.day === dayName);
 
-  // Show 0/0 if no attendance stats, or if course has a schedule but no lesson today
-  const hasSchedule = course.schedule_details && course.schedule_details.length > 0;
+  // Show 0/0 if no attendance stats, or if the class has a schedule but no lesson today
+  const hasSchedule = courseClass.schedule_details && courseClass.schedule_details.length > 0;
   const noLessonToday = selectedDate && hasSchedule && !todaySchedule;
   const showStats = !!stats && !noLessonToday;
 
@@ -49,20 +54,23 @@ export default function CourseCard({ course, stats, onClick, selectedDate }: Cou
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-1 flex-row p-2">
-        <h3 className="font-bold text-foreground group-hover:text-primary transition-colors text-lg p-0 m-0 flex items-center gap-1.5">
-          {course.is_pinned && (
-            <Pin className="w-4 h-4 text-primary flex-shrink-0" aria-label="دورة ثابتة" />
-          )}
-          {course.title}
-        </h3>
+        <div className="min-w-0">
+          <h3 className="font-bold text-foreground group-hover:text-primary transition-colors text-lg p-0 m-0 flex items-center gap-1.5">
+            {courseClass.is_pinned && (
+              <Pin className="w-4 h-4 text-primary flex-shrink-0" aria-label="شعبة ثابتة" />
+            )}
+            {courseClass.course?.title ?? "دورة"}
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">{courseClass.name}</p>
+        </div>
         <div className="flex items-center gap-2">
-          {course.teachers && course.teachers.length > 0 ? (
+          {courseClass.teachers && courseClass.teachers.length > 0 ? (
             <span className="text-sm ">
-              {course.teachers.map((t) => t.user?.name ?? `معلم #${t.id}`).join("، ")}
+              {courseClass.teachers.map((t) => t.user?.name ?? `معلم #${t.id}`).join("، ")}
             </span>
-          ) : course.teachers_count != null && course.teachers_count > 0 ? (
+          ) : courseClass.teachers_count != null && courseClass.teachers_count > 0 ? (
             <span className="text-sm ">
-              {course.teachers_count} معلم
+              {courseClass.teachers_count} معلم
             </span>
           ) : null}
         </div>
@@ -72,11 +80,11 @@ export default function CourseCard({ course, stats, onClick, selectedDate }: Cou
       {/* Color indicator */}
       <div className="flex flex-wrap flex-col items-start gap-2 mb-4">
         <span className={`course-tag p-0 course-tag-${colorTag}`}>
-          {course.description || ''}
+          {courseClass.course?.description || ''}
         </span>
-        {course.schedule_details && course.schedule_details.length > 0 && (
+        {courseClass.schedule_details && courseClass.schedule_details.length > 0 && (
           <div className="flex flex-wrap gap-2 w-full mt-1">
-            {course.schedule_details.map((schedule, idx) => (
+            {courseClass.schedule_details.map((schedule, idx) => (
               (schedule.from_time || schedule.to_time) ? (
                 <p key={idx} className={`text-[10px] px-0 py-0.5 rounded border text-black font-bold dir-ltr  flex items-center gap-1 ${schedule.day === dayName ? 'bg-primary/20 border-primary/40' : 'bg-background/80'}`}>
                   <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg" className="ionicon" viewBox="0 0 512 512"><path d="M112.91 128A191.85 191.85 0 0064 254c-1.18 106.35 85.65 193.8 192 194 106.2.2 192-85.83 192-192 0-104.54-83.55-189.61-187.5-192a4.36 4.36 0 00-4.5 4.37V152" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="32" /><path d="M233.38 278.63l-79-113a8.13 8.13 0 0111.32-11.32l113 79a32.5 32.5 0 01-37.25 53.26 33.21 33.21 0 01-8.07-7.94z" /></svg> {schedule.day ? (daysTranslation[schedule.day] || schedule.day) : ""}: {schedule.from_time || ""} - {schedule.to_time || ""}

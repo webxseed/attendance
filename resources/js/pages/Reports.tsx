@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AttendanceRecord } from "@/lib/api";
 import { fmtDate } from "@/lib/api";
-import { useReportGenerate, useCourses, useCourse } from "@/hooks/useApi";
+import { useReportGenerate, useCourses, useClass, useClasses } from "@/hooks/useApi";
 import { BarChart3, Check, ChevronsUpDown, Download, Filter, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,11 +35,16 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   excused: { label: "معذور", className: "bg-blue-100 text-blue-700 border-blue-300" },
 };
 
+function recordLabel(r: AttendanceRecord): string {
+  const course = r.session?.course_class?.course?.title ?? "";
+  const className = r.session?.course_class?.name ?? "";
+  return course && className ? `${course} — ${className}` : course || className || "—";
+}
+
 function recordSortKey(r: AttendanceRecord): string {
   const d = r.session?.date?.slice(0, 10) ?? "";
-  const course = r.session?.course?.title ?? "";
   const name = r.student?.full_name ?? "";
-  return `${d}\t${course}\t${name}`;
+  return `${d}\t${recordLabel(r)}\t${name}`;
 }
 
 export default function Reports() {
@@ -47,6 +52,7 @@ export default function Reports() {
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
   const [courseFilter, setCourseFilter] = useState("all");
+  const [classFilter, setClassFilter] = useState("all");
   const [studentFilter, setStudentFilter] = useState("all");
   const [studentComboOpen, setStudentComboOpen] = useState(false);
   const [dateOrder, setDateOrder] = useState<"desc" | "asc">("desc");
@@ -56,14 +62,16 @@ export default function Reports() {
       from_date: string;
       to_date: string;
       course_id?: number;
+      class_id?: number;
       student_id?: number;
     } = { from_date: fromDate, to_date: toDate };
     if (courseFilter !== "all") {
       p.course_id = Number(courseFilter);
+      if (classFilter !== "all") p.class_id = Number(classFilter);
       if (studentFilter !== "all") p.student_id = Number(studentFilter);
     }
     return p;
-  }, [fromDate, toDate, courseFilter, studentFilter]);
+  }, [fromDate, toDate, courseFilter, classFilter, studentFilter]);
 
   const { data: report, isLoading } = useReportGenerate(reportParams);
   const { data: coursesPage } = useCourses();
@@ -71,16 +79,29 @@ export default function Reports() {
 
   const selectedCourseId =
     courseFilter !== "all" ? Number(courseFilter) : null;
-  const { data: selectedCourse, isLoading: courseDetailLoading } = useCourse(
-    selectedCourseId ?? 0
+
+  // Classes of the selected course, and the roster of the selected class
+  const { data: classesPage } = useClasses(
+    { courseId: selectedCourseId },
+    !!selectedCourseId
   );
-  const courseStudents = selectedCourse?.students ?? [];
+  const courseClasses = classesPage?.data ?? [];
+
+  const selectedClassId = classFilter !== "all" ? Number(classFilter) : null;
+  const { data: selectedClass, isLoading: classDetailLoading } = useClass(selectedClassId);
+  const classStudents = selectedClass?.students ?? [];
+
+  // A class filter from a previous course must not survive a course change
+  useEffect(() => {
+    if (classFilter === "all" || !courseClasses.length) return;
+    if (!courseClasses.some((c) => String(c.id) === classFilter)) setClassFilter("all");
+  }, [courseClasses, classFilter]);
 
   useEffect(() => {
-    if (studentFilter === "all" || !courseStudents.length) return;
-    const ok = courseStudents.some((s) => String(s.id) === studentFilter);
+    if (studentFilter === "all" || !classStudents.length) return;
+    const ok = classStudents.some((s) => String(s.id) === studentFilter);
     if (!ok) setStudentFilter("all");
-  }, [courseStudents, studentFilter]);
+  }, [classStudents, studentFilter]);
 
   const sortedRecords = useMemo(() => {
     const list = [...(report?.records ?? [])];
@@ -128,6 +149,7 @@ export default function Reports() {
           value={courseFilter}
           onValueChange={(v) => {
             setCourseFilter(v);
+            setClassFilter("all");
             setStudentFilter("all");
           }}
         >
@@ -144,13 +166,35 @@ export default function Reports() {
           </SelectContent>
         </Select>
 
-        {selectedCourseId == null ? (
+        <Select
+          value={classFilter}
+          onValueChange={(v) => {
+            setClassFilter(v);
+            setStudentFilter("all");
+          }}
+          disabled={selectedCourseId == null}
+        >
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="الشعبة" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">جميع الشعب</SelectItem>
+            {courseClasses.map((c) => (
+              <SelectItem key={c.id} value={String(c.id)}>
+                {c.name}
+                {c.academic_year ? ` — ${c.academic_year.name}` : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {selectedClassId == null ? (
           <Button
             variant="outline"
             disabled
             className="w-[min(100%,280px)] justify-between font-normal text-muted-foreground"
           >
-            اختر دورة لعرض الطلاب
+            اختر شعبة لعرض الطلاب
             <ChevronsUpDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         ) : (
@@ -160,18 +204,18 @@ export default function Reports() {
                 variant="outline"
                 role="combobox"
                 aria-expanded={studentComboOpen}
-                disabled={courseDetailLoading}
+                disabled={classDetailLoading}
                 className="w-[min(100%,280px)] justify-between text-start font-normal"
               >
-                {courseDetailLoading ? (
+                {classDetailLoading ? (
                   <span className="text-muted-foreground">جارٍ التحميل…</span>
                 ) : studentFilter === "all" ? (
-                  <span className="text-muted-foreground">جميع طلاب الدورة</span>
+                  <span className="text-muted-foreground">جميع طلاب الشعبة</span>
                 ) : (
-                  courseStudents.find((s) => String(s.id) === studentFilter)
+                  classStudents.find((s) => String(s.id) === studentFilter)
                     ?.full_name ?? "طالب"
                 )}
-                {courseDetailLoading ? (
+                {classDetailLoading ? (
                   <Loader2 className="ms-2 h-4 w-4 shrink-0 animate-spin opacity-50" />
                 ) : (
                   <ChevronsUpDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
@@ -197,9 +241,9 @@ export default function Reports() {
                           studentFilter === "all" ? "opacity-100" : "opacity-0"
                         )}
                       />
-                      جميع طلاب الدورة
+                      جميع طلاب الشعبة
                     </CommandItem>
-                    {courseStudents.map((student) => (
+                    {classStudents.map((student) => (
                       <CommandItem
                         key={student.id}
                         value={`${student.full_name} ${student.external_code ?? ""}`}
@@ -293,7 +337,7 @@ export default function Reports() {
                   <thead>
                     <tr className="border-b bg-muted/40 text-muted-foreground">
                       <th className="text-end py-3 px-4 font-medium">التاريخ</th>
-                      <th className="text-end py-3 px-4 font-medium">الدورة</th>
+                      <th className="text-end py-3 px-4 font-medium">الدورة / الشعبة</th>
                       <th className="text-end py-3 px-4 font-medium">الطالب</th>
                       <th className="text-end py-3 px-4 font-medium">الحالة</th>
                     </tr>
@@ -302,7 +346,7 @@ export default function Reports() {
                     {sortedRecords.map((record) => {
                       const cfg = record.status ? statusConfig[record.status] : null;
                       const dateStr = record.session?.date?.slice(0, 10) ?? "—";
-                      const courseTitle = record.session?.course?.title ?? "—";
+                      const courseTitle = recordLabel(record);
                       return (
                         <tr key={record.id} className="border-b border-border/60 last:border-0">
                           <td className="py-2.5 px-4 tabular-nums">{dateStr}</td>

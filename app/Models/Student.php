@@ -35,9 +35,9 @@ class Student extends Model
         return $this->belongsTo(Category::class);
     }
 
-    public function courses()
+    public function classes()
     {
-        return $this->belongsToMany(Course::class, 'course_student');
+        return $this->belongsToMany(CourseClass::class, 'class_student', 'student_id', 'course_class_id');
     }
 
     public function attendanceRecords()

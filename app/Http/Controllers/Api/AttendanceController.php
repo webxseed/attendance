@@ -5,8 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceRecord;
 use App\Models\AttendanceSession;
-use App\Models\Course;
-use App\Models\Student;
+use App\Models\CourseClass;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -14,40 +13,34 @@ use Illuminate\Validation\Rule;
 class AttendanceController extends Controller
 {
     /**
-     * Get or create attendance session for a course and date.
-     * Prefills records for assigned students if missing.
+     * Get or create the attendance session for a class and date.
+     * Prefills records for the class roster if missing.
      */
-    public function show(Request $request, $courseId, $date)
+    public function show(Request $request, $classId, $date)
     {
         $user = $request->user();
-        $course = Course::findOrFail($courseId);
+        $class = CourseClass::findOrFail($classId);
 
-        // Authorization
-        if ($user->isTeacher()) {
-            if (!$user->teacher || !$course->teachers()->where('teachers.id', $user->teacher->id)->exists()) {
-                return response()->json(['message' => 'Unauthorized for this course'], 403);
-            }
-        } elseif (!$user->isAdmin()) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if ($error = $this->authorizeClass($request, $class)) {
+            return $error;
         }
 
-        // Validate date format if needed, implicit in route usually but good to check
         if (!strtotime($date)) {
             return response()->json(['message' => 'Invalid date'], 400);
         }
 
         // Transaction to ensure atomicity of session creation + records
-        $session = DB::transaction(function () use ($course, $date, $user) {
+        $session = DB::transaction(function () use ($class, $date, $user) {
             $session = AttendanceSession::firstOrCreate(
-                ['course_id' => $course->id, 'date' => $date],
+                ['course_class_id' => $class->id, 'date' => $date],
                 ['created_by_user_id' => $user->id]
             );
 
-            // Sync students: Ensure all assigned students have a record
-            // We do NOT delete records for students removed from course to preserve history, 
-            // but we add new ones.
-            $studentIds = $course->students()->pluck('students.id');
-            
+            // Sync students: ensure every student on the roster has a record.
+            // We do NOT delete records for students removed from the class, to
+            // preserve history, but we add new ones.
+            $studentIds = $class->students()->pluck('students.id');
+
             $existingRecords = $session->records()->pluck('student_id')->toArray();
             $missingStudentIds = $studentIds->diff($existingRecords);
 
@@ -75,21 +68,18 @@ class AttendanceController extends Controller
     /**
      * Bulk update attendance records.
      */
-    public function update(Request $request, $courseId, $date)
+    public function update(Request $request, $classId, $date)
     {
         $user = $request->user();
-        $course = Course::findOrFail($courseId);
+        $class = CourseClass::findOrFail($classId);
 
-        // Authorization
-        if ($user->isTeacher()) {
-            if (!$user->teacher || !$course->teachers()->where('teachers.id', $user->teacher->id)->exists()) {
-                return response()->json(['message' => 'Unauthorized'], 403);
-            }
-        } elseif (!$user->isAdmin()) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if ($error = $this->authorizeClass($request, $class)) {
+            return $error;
         }
 
-        $session = AttendanceSession::where('course_id', $courseId)->where('date', $date)->firstOrFail();
+        $session = AttendanceSession::where('course_class_id', $class->id)
+            ->where('date', $date)
+            ->firstOrFail();
 
         $validated = $request->validate([
             'records' => 'required|array',
@@ -124,5 +114,27 @@ class AttendanceController extends Controller
         });
 
         return response()->json(['message' => 'Attendance updated successfully']);
+    }
+
+    /**
+     * Admins pass; teachers must be assigned to the class.
+     * Returns an error response, or null when allowed.
+     */
+    private function authorizeClass(Request $request, CourseClass $class)
+    {
+        $user = $request->user();
+
+        if ($user->isAdmin()) {
+            return null;
+        }
+
+        if ($user->isTeacher()) {
+            if ($user->teacher && $class->teachers()->where('teachers.id', $user->teacher->id)->exists()) {
+                return null;
+            }
+            return response()->json(['message' => 'Unauthorized for this class'], 403);
+        }
+
+        return response()->json(['message' => 'Unauthorized'], 403);
     }
 }

@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Course, toColorTag } from "@/lib/api";
+import { CourseClass, toColorTag } from "@/lib/api";
 import { useAttendanceSession, useSaveAttendance } from "@/hooks/useApi";
 import { CheckCircle2, Save, RotateCcw, CheckCheck, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 type UiStatus = "present" | "absent" | "unmarked";
 
 interface AttendanceDrawerProps {
-  course: Course | null;
+  courseClass: CourseClass | null;
   date: string; // YYYY-MM-DD
   open: boolean;
   onClose: () => void;
@@ -32,7 +32,7 @@ interface StudentAttendance {
 }
 
 export default function AttendanceDrawer({
-  course,
+  courseClass,
   date,
   open,
   onClose,
@@ -41,7 +41,7 @@ export default function AttendanceDrawer({
 
   // Fetch the attendance session from the API
   const { data: session, isLoading } = useAttendanceSession(
-    open && course ? course.id : null,
+    open && courseClass ? courseClass.id : null,
     date
   );
 
@@ -63,7 +63,7 @@ export default function AttendanceDrawer({
   const [attendance, setAttendance] =
     useState<StudentAttendance[]>(initialAttendance);
 
-  // Reset when session changes (new course or date)
+  // Reset when session changes (new class or date)
   useEffect(() => {
     setAttendance(initialAttendance);
     setSessionNote(session?.note ?? "");
@@ -109,7 +109,7 @@ export default function AttendanceDrawer({
   };
 
   const handleSave = async () => {
-    if (!course) return;
+    if (!courseClass) return;
 
     // Only send marked students (present/absent) to the API
     const records = attendance
@@ -131,7 +131,7 @@ export default function AttendanceDrawer({
 
     saveMutation.mutate(
       {
-        courseId: course.id,
+        classId: courseClass.id,
         date,
         records: records.length > 0 ? records : undefined,
         note: sessionNote !== (session?.note ?? "") ? sessionNote : undefined
@@ -140,7 +140,7 @@ export default function AttendanceDrawer({
         onSuccess: () => {
           toast({
             title: "تم الحفظ بنجاح",
-            description: `تم حفظ حضور ${course.title} - ${presentCount} حاضر من ${attendance.length}`,
+            description: `تم حفظ حضور ${courseClass.course?.title ?? ""} ${courseClass.name} - ${presentCount} حاضر من ${attendance.length}`,
           });
         },
         onError: () => {
@@ -154,8 +154,8 @@ export default function AttendanceDrawer({
     );
   };
 
-  if (!course) return null;
-  const colorTag = toColorTag(course.color);
+  if (!courseClass) return null;
+  const colorTag = toColorTag(courseClass.course?.color);
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -169,7 +169,10 @@ export default function AttendanceDrawer({
               <span className={`course-tag course-tag-${colorTag}`}>
                 {date}
               </span>
-              <span>{course.title}</span>
+              <div className="text-end">
+                <span>{courseClass.course?.title ?? "دورة"}</span>
+                <p className="text-xs font-normal text-muted-foreground">{courseClass.name}</p>
+              </div>
             </div>
           </SheetTitle>
           {/* Progress */}
@@ -225,7 +228,7 @@ export default function AttendanceDrawer({
             </div>
           ) : attendance.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
-              <p>لا يوجد طلاب مسجّلون في هذه الدورة</p>
+              <p>لا يوجد طلاب مسجّلون في هذه الشعبة</p>
             </div>
           ) : (
             attendance.map((student) => (

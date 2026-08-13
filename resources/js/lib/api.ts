@@ -55,7 +55,7 @@ export interface Teacher {
   user_id: number;
   phone: string | null;
   user?: User;
-  courses?: Course[];
+  classes?: CourseClass[];
 }
 
 export interface Year {
@@ -71,23 +71,47 @@ export interface Category {
   name: string;
 }
 
+export interface ScheduleItem {
+  day: string;
+  from_time: string;
+  to_time: string;
+  note: string;
+}
+
+/**
+ * A course is the subject itself. Its years, rosters, teachers, schedules and
+ * attendance live on its classes ("شعبة").
+ */
 export interface Course {
   id: number;
   title: string;
   color: string | null;
   description: string | null;
+  category_id?: number | null;
+  category?: Category | null;
+  classes?: CourseClass[];
+  classes_count?: number;
+  /** Distinct students across all of the course's classes */
+  students_count?: number;
+  archived_at?: string | null;
+}
+
+/** A class ("شعبة") – one run of a course in a given academic year */
+export interface CourseClass {
+  id: number;
+  course_id: number;
+  name: string;
   year?: number | null;
   year_id?: number | null;
-  category_id?: number | null;
+  course?: Course | null;
   academic_year?: Year | null;
-  category?: Category | null;
-  schedule_details?: { day: string; from_time: string; to_time: string; note: string }[] | null;
+  schedule_details?: ScheduleItem[] | null;
   students_count?: number;
   teachers_count?: number;
   teachers?: Teacher[];
   students?: Student[];
   archived_at?: string | null;
-  /** Pinned ("ثابت") courses show on the Today page for every academic year */
+  /** Pinned ("ثابت") classes show on the Today page for every academic year */
   is_pinned?: boolean;
 }
 
@@ -107,13 +131,13 @@ export interface Student {
   mother_phone?: string | null;
   father_name?: string | null;
   father_phone?: string | null;
-  courses?: Course[];
+  classes?: CourseClass[];
   archived_at?: string | null;
 }
 
 export interface AttendanceSession {
   id: number;
-  course_id: number;
+  course_class_id: number;
   date: string;
   created_by_user_id: number | null;
   finalized_at: string | null;
@@ -133,9 +157,11 @@ export interface AttendanceRecord {
   /** Present on `/reports` generate responses */
   session?: {
     id: number;
-    course_id: number;
+    course_class_id: number;
     date: string;
-    course?: Pick<Course, "id" | "title">;
+    course_class?: Pick<CourseClass, "id" | "name"> & {
+      course?: Pick<Course, "id" | "title">;
+    };
   };
 }
 
@@ -148,6 +174,8 @@ export interface PaginatedResponse<T> {
 }
 
 export interface DailyOverviewItem {
+  class_id: number;
+  class_name: string;
   course_id: number;
   course_title: string;
   total_students: number;
@@ -259,32 +287,8 @@ export const coursesApi = {
     title: string;
     color?: string;
     description?: string;
-    year?: number;
-    year_id?: number;
     category_id?: number | null;
-    schedule_details?: any[];
-    is_pinned?: boolean;
   }) => api.post<Course>("/courses", data),
-
-  duplicateToYear: (
-    id: number,
-    data: {
-      year_id: number;
-      year?: number | null;
-      copy_students?: boolean;
-    }
-  ) => api.post<Course>(`/courses/${id}/duplicate-to-year`, data),
-
-  duplicateManyToYear: (data: {
-    course_ids: number[];
-    year_id: number;
-    year?: number | null;
-    copy_students?: boolean;
-  }) =>
-    api.post<{ message: string; count: number; courses: Course[] }>(
-      "/courses/duplicate-to-year",
-      data
-    ),
 
   update: (
     id: number,
@@ -292,11 +296,7 @@ export const coursesApi = {
       title?: string;
       color?: string;
       description?: string;
-      year?: number;
-      year_id?: number;
       category_id?: number | null;
-      schedule_details?: any[];
-      is_pinned?: boolean;
     }
   ) => api.put<Course>(`/courses/${id}`, data),
 
@@ -304,20 +304,91 @@ export const coursesApi = {
 
   archive: (id: number) => api.post(`/courses/${id}/archive`),
   unarchive: (id: number) => api.post(`/courses/${id}/unarchive`),
+};
 
-  assignTeacher: (courseId: number, teacherId: number) =>
-    api.post(`/courses/${courseId}/teachers`, { teacher_id: teacherId }),
+// ---------------------------------------------------------------------------
+// Classes ("شعبة") API – a course's run in a year, holding the roster
+// ---------------------------------------------------------------------------
 
-  removeTeacher: (courseId: number, teacherId: number) =>
-    api.delete(`/courses/${courseId}/teachers`, {
+export const classesApi = {
+  list: (opts: {
+    archived?: boolean;
+    yearId?: number | null;
+    courseId?: number | null;
+  } = {}) => {
+    const params = new URLSearchParams();
+    if (opts.archived) params.set("archived", "true");
+    if (opts.yearId) params.set("year_id", String(opts.yearId));
+    if (opts.courseId) params.set("course_id", String(opts.courseId));
+    const query = params.toString();
+    return api.get<PaginatedResponse<CourseClass>>(
+      `/classes${query ? `?${query}` : ""}`
+    );
+  },
+
+  show: (id: number) => api.get<CourseClass>(`/classes/${id}`),
+
+  create: (data: {
+    course_id: number;
+    name: string;
+    year_id?: number | null;
+    year?: number | null;
+    schedule_details?: ScheduleItem[];
+    is_pinned?: boolean;
+  }) => api.post<CourseClass>("/classes", data),
+
+  update: (
+    id: number,
+    data: {
+      course_id?: number;
+      name?: string;
+      year_id?: number | null;
+      year?: number | null;
+      schedule_details?: ScheduleItem[];
+      is_pinned?: boolean;
+    }
+  ) => api.put<CourseClass>(`/classes/${id}`, data),
+
+  destroy: (id: number) => api.delete(`/classes/${id}`),
+
+  archive: (id: number) => api.post(`/classes/${id}/archive`),
+  unarchive: (id: number) => api.post(`/classes/${id}/unarchive`),
+
+  duplicateToYear: (
+    id: number,
+    data: {
+      year_id: number;
+      year?: number | null;
+      name?: string | null;
+      copy_students?: boolean;
+    }
+  ) => api.post<CourseClass>(`/classes/${id}/duplicate-to-year`, data),
+
+  duplicateManyToYear: (data: {
+    class_ids: number[];
+    year_id: number;
+    year?: number | null;
+    name?: string | null;
+    copy_students?: boolean;
+  }) =>
+    api.post<{ message: string; count: number; classes: CourseClass[] }>(
+      "/classes/duplicate-to-year",
+      data
+    ),
+
+  assignTeacher: (classId: number, teacherId: number) =>
+    api.post(`/classes/${classId}/teachers`, { teacher_id: teacherId }),
+
+  removeTeacher: (classId: number, teacherId: number) =>
+    api.delete(`/classes/${classId}/teachers`, {
       data: { teacher_id: teacherId },
     }),
 
-  assignStudent: (courseId: number, studentId: number) =>
-    api.post(`/courses/${courseId}/students`, { student_id: studentId }),
+  assignStudent: (classId: number, studentId: number) =>
+    api.post(`/classes/${classId}/students`, { student_id: studentId }),
 
-  removeStudent: (courseId: number, studentId: number) =>
-    api.delete(`/courses/${courseId}/students`, {
+  removeStudent: (classId: number, studentId: number) =>
+    api.delete(`/classes/${classId}/students`, {
       data: { student_id: studentId },
     }),
 };
@@ -424,17 +495,17 @@ export const studentsApi = {
 // ---------------------------------------------------------------------------
 
 export const attendanceApi = {
-  getSession: (courseId: number, date: string) =>
-    api.get<AttendanceSession>(`/attendance/${courseId}/${date}`),
+  getSession: (classId: number, date: string) =>
+    api.get<AttendanceSession>(`/attendance/${classId}/${date}`),
 
   updateSession: (
-    courseId: number,
+    classId: number,
     date: string,
     data: {
       records?: { student_id: number; status: string; note?: string }[];
       note?: string;
     }
-  ) => api.post(`/attendance/${courseId}/${date}`, data),
+  ) => api.post(`/attendance/${classId}/${date}`, data),
 };
 
 // ---------------------------------------------------------------------------
@@ -449,6 +520,7 @@ export const reportsApi = {
 
   generate: (params: {
     course_id?: number;
+    class_id?: number;
     teacher_id?: number;
     student_id?: number;
     from_date?: string;

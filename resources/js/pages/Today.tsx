@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Course, fmtDate } from "@/lib/api";
-import { useCourses, useTodayStats, useYears } from "@/hooks/useApi";
+import { CourseClass, fmtDate } from "@/lib/api";
+import { useClasses, useTodayStats, useYears } from "@/hooks/useApi";
 import SummaryCards from "@/components/SummaryCards";
 import WeekStrip from "@/components/WeekStrip";
-import CourseCard from "@/components/CourseCard";
+import ClassCard from "@/components/ClassCard";
 import AttendanceDrawer from "@/components/AttendanceDrawer";
 import FloatingActionButton from "@/components/FloatingActionButton";
 import { CalendarDays, Loader2 } from "lucide-react";
@@ -19,7 +19,7 @@ export default function Today() {
   const today = fmtDate(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
   const [selectedYearId, setSelectedYearId] = useState("");
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [selectedClass, setSelectedClass] = useState<CourseClass | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [search] = useState("");
 
@@ -47,31 +47,32 @@ export default function Today() {
     setSelectedYearId(String(yearOptions[0].id));
   }, [selectedYearId, years]);
 
-  const { data: coursesPage, isLoading: coursesLoading } = useCourses(
-    false,
-    selectedYearIdNumber,
+  const { data: classesPage, isLoading: classesLoading } = useClasses(
+    { yearId: selectedYearIdNumber },
     !!selectedYearIdNumber
   );
-  const courses = coursesPage?.data ?? [];
+  const classes = classesPage?.data ?? [];
 
   // Fetch attendance stats for the selected date
   const { statsMap, isLoading: statsLoading } = useTodayStats(
-    courses,
+    classes,
     selectedDate,
     selectedYearIdNumber,
     !!selectedYearIdNumber
   );
 
-  // Search filter – pinned ("ثابت") courses come back for every year, listed first
-  const filteredCourses = (search
-    ? courses.filter((c) => c.title.includes(search))
-    : courses
+  // Search filter – pinned ("ثابت") classes come back for every year, listed first
+  const filteredClasses = (search
+    ? classes.filter(
+      (c) => c.course?.title.includes(search) || c.name.includes(search)
+    )
+    : classes
   )
     .slice()
     .sort((a, b) => Number(!!b.is_pinned) - Number(!!a.is_pinned));
 
-  // Aggregate stats across all courses
-  const totalStats = courses.reduce(
+  // Aggregate stats across all classes
+  const totalStats = classes.reduce(
     (acc, c) => {
       const s = statsMap[c.id] ?? {
         total: c.students_count ?? 0,
@@ -89,8 +90,8 @@ export default function Today() {
     { total: 0, present: 0, absent: 0, unmarked: 0 }
   );
 
-  const openDrawer = (course: Course) => {
-    setSelectedCourse(course);
+  const openDrawer = (courseClass: CourseClass) => {
+    setSelectedClass(courseClass);
     setDrawerOpen(true);
   };
 
@@ -104,7 +105,7 @@ export default function Today() {
   });
 
   const isLoading =
-    yearsLoading || (!!selectedYearIdNumber && (coursesLoading || statsLoading));
+    yearsLoading || (!!selectedYearIdNumber && (classesLoading || statsLoading));
 
   return (
     <div className="space-y-2 pb-20 lg:pb-8 " >
@@ -141,7 +142,7 @@ export default function Today() {
             value={selectedYearId}
             onValueChange={(value) => {
               setSelectedYearId(value);
-              setSelectedCourse(null);
+              setSelectedClass(null);
               setDrawerOpen(false);
             }}
             disabled={yearOptions.length === 0}
@@ -180,7 +181,7 @@ export default function Today() {
           </div>
         ) : (
           <div className="space-y-8">
-            {selectedYear && filteredCourses.length > 0 && (
+            {selectedYear && filteredClasses.length > 0 && (
               <div className="space-y-4">
                 <div>
                   <h2 className="text-lg font-semibold text-foreground">
@@ -193,12 +194,12 @@ export default function Today() {
                   )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
-                  {filteredCourses.map((course) => (
-                    <CourseCard
-                      key={course.id}
-                      course={course}
-                      stats={statsMap[course.id]}
-                      onClick={() => openDrawer(course)}
+                  {filteredClasses.map((courseClass) => (
+                    <ClassCard
+                      key={courseClass.id}
+                      courseClass={courseClass}
+                      stats={statsMap[courseClass.id]}
+                      onClick={() => openDrawer(courseClass)}
                       selectedDate={selectedDate}
                     />
                   ))}
@@ -206,13 +207,13 @@ export default function Today() {
               </div>
             )}
 
-            {filteredCourses.length === 0 && (
+            {filteredClasses.length === 0 && (
               <div className="text-center py-16 bg-card rounded-2xl border">
                 <CalendarDays className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
                 <p className="text-muted-foreground font-medium">
                   {yearOptions.length === 0
                     ? "لا توجد سنوات دراسية"
-                    : "لا توجد دورات في السنة المحددة"}
+                    : "لا توجد شعب في السنة المحددة"}
                 </p>
                 <p className="text-sm text-muted-foreground/70 mt-1">
                   {search ? "لم يتم العثور على نتائج" : "اختر سنة أخرى من القائمة"}
@@ -225,7 +226,7 @@ export default function Today() {
 
       {/* Attendance Drawer */}
       <AttendanceDrawer
-        course={selectedCourse}
+        courseClass={selectedClass}
         date={selectedDate}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
@@ -234,8 +235,8 @@ export default function Today() {
       {/* Mobile FAB */}
       <FloatingActionButton
         onClick={() => {
-          if (filteredCourses.length > 0) {
-            openDrawer(filteredCourses[0]);
+          if (filteredClasses.length > 0) {
+            openDrawer(filteredClasses[0]);
           }
         }}
       />

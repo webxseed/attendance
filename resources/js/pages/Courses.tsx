@@ -1,11 +1,21 @@
 import { useState, useEffect } from "react";
-import { Course, toColorTag, coursesApi } from "@/lib/api";
+import { Course, CourseClass, ScheduleItem, toColorTag, classesApi } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useCourses,
-  useCourse,
   useCreateCourse,
   useUpdateCourse,
+  useDeleteCourse,
+  useArchiveCourse,
+  useUnarchiveCourse,
+  useClass,
+  useCreateClass,
+  useUpdateClass,
+  useDeleteClass,
+  useArchiveClass,
+  useUnarchiveClass,
+  useDuplicateClassToYear,
+  useDuplicateClassesToYear,
   useTeachers,
   useAllStudents,
   useAssignTeacher,
@@ -14,11 +24,6 @@ import {
   useRemoveStudent,
   useCreateStudent,
   useCreateTeacher,
-  useDeleteCourse,
-  useArchiveCourse,
-  useUnarchiveCourse,
-  useDuplicateCourseToYear,
-  useDuplicateCoursesToYear,
   useYears,
   useCreateYear,
   useCategories,
@@ -76,6 +81,8 @@ import {
   UserPlus,
   Check,
   ChevronsUpDown,
+  ChevronDown,
+  ChevronLeft,
   Pencil,
   Trash2,
   Archive,
@@ -83,6 +90,7 @@ import {
   Copy,
   Pin,
   PinOff,
+  Layers,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -94,53 +102,425 @@ const colorOptions = [
   { value: "violet", label: "بنفسجي" },
 ];
 
+const WEEKDAYS = [
+  { value: "Sunday", date: "2023-01-01" },
+  { value: "Monday", date: "2023-01-02" },
+  { value: "Tuesday", date: "2023-01-03" },
+  { value: "Wednesday", date: "2023-01-04" },
+  { value: "Thursday", date: "2023-01-05" },
+  { value: "Friday", date: "2023-01-06" },
+  { value: "Saturday", date: "2023-01-07" },
+].map((d) => ({
+  value: d.value,
+  label: new Intl.DateTimeFormat("ar-EG", { weekday: "long" }).format(new Date(d.date)),
+}));
+
+const emptySchedule = (): ScheduleItem => ({
+  day: "Sunday",
+  from_time: "10:00",
+  to_time: "12:00",
+  note: "",
+});
+
+// ---------------------------------------------------------------------------
+// Weekly schedule editor – shared by the class create form and the class sheet
+// ---------------------------------------------------------------------------
+
+function ScheduleEditor({
+  value,
+  onChange,
+}: {
+  value: ScheduleItem[];
+  onChange: (items: ScheduleItem[]) => void;
+}) {
+  const updateItem = (index: number, field: keyof ScheduleItem, fieldValue: string) => {
+    onChange(value.map((item, i) => (i === index ? { ...item, [field]: fieldValue } : item)));
+  };
+
+  return (
+    <div className="space-y-2">
+      {value.map((item, index) => (
+        <div key={index} className="flex gap-2 items-start">
+          <Select value={item.day} onValueChange={(val) => updateItem(index, "day", val)}>
+            <SelectTrigger className="w-[110px]">
+              <SelectValue placeholder="اليوم" />
+            </SelectTrigger>
+            <SelectContent>
+              {WEEKDAYS.map((day) => (
+                <SelectItem key={day.value} value={day.value}>
+                  {day.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] text-muted-foreground">من</span>
+            <Input
+              type="time"
+              className="w-[90px] h-8 text-xs"
+              value={item.from_time}
+              onChange={(e) => updateItem(index, "from_time", e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] text-muted-foreground">إلى</span>
+            <Input
+              type="time"
+              className="w-[90px] h-8 text-xs"
+              value={item.to_time}
+              onChange={(e) => updateItem(index, "to_time", e.target.value)}
+            />
+          </div>
+          <div className="flex-1 flex flex-col gap-1">
+            <span className="text-[10px] text-muted-foreground">&nbsp;</span>
+            <Input
+              placeholder="ملاحظة"
+              className="h-8 text-xs"
+              value={item.note}
+              onChange={(e) => updateItem(index, "note", e.target.value)}
+            />
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-destructive mt-[18px]"
+            onClick={() => onChange(value.filter((_, i) => i !== index))}
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="w-full gap-2 border-dashed"
+        onClick={() => onChange([...value, emptySchedule()])}
+      >
+        <Plus className="w-4 h-4" />
+        إضافة موعد
+      </Button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Academic-year picker with an inline "create year" popover
+// ---------------------------------------------------------------------------
+
+function YearPicker({
+  value,
+  onChange,
+  placeholder = "اختر السنة",
+}: {
+  value: string;
+  onChange: (yearId: string) => void;
+  placeholder?: string;
+}) {
+  const { toast } = useToast();
+  const { data: years } = useYears();
+  const createYear = useCreateYear();
+  const [title, setTitle] = useState("");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+
+  const handleCreate = async () => {
+    if (!title.trim() || !start.trim() || !end.trim()) return;
+    try {
+      const year = await createYear.mutateAsync({
+        title,
+        start_year: start,
+        end_year: end,
+      });
+      setTitle("");
+      setStart("");
+      setEnd("");
+      onChange(year.id.toString());
+      toast({ title: "تم", description: "تمت إضافة السنة بنجاح" });
+    } catch (e: any) {
+      toast({
+        title: "خطأ",
+        description: e.response?.data?.message || "فشل إضافة السنة",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <div className="flex gap-2">
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="flex-1">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {years?.map((y) => (
+            <SelectItem key={y.id} value={y.id.toString()}>
+              {y.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="icon">
+            <Plus className="w-4 h-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-3">
+          <div className="space-y-2">
+            <h4 className="font-medium text-xs leading-none">إضافة سنة جديدة</h4>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                placeholder="اللقب (مثال: فوج)"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="h-8 text-xs col-span-2"
+              />
+              <Input
+                placeholder="2026"
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+                className="h-8 text-xs"
+                type="number"
+              />
+              <Input
+                placeholder="2027"
+                value={end}
+                onChange={(e) => setEnd(e.target.value)}
+                className="h-8 text-xs"
+                type="number"
+              />
+            </div>
+            <Button
+              size="sm"
+              className="w-full h-8 text-xs"
+              onClick={handleCreate}
+              disabled={createYear.isPending}
+            >
+              {createYear.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "إضافة"}
+            </Button>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Category picker with an inline "create category" popover
+// ---------------------------------------------------------------------------
+
+function CategoryPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (categoryId: string) => void;
+}) {
+  const { toast } = useToast();
+  const { data: categories } = useCategories();
+  const createCategory = useCreateCategory();
+  const [name, setName] = useState("");
+
+  const handleCreate = async () => {
+    if (!name.trim()) return;
+    try {
+      const category = await createCategory.mutateAsync({ name: name.trim() });
+      setName("");
+      onChange(category.id.toString());
+      toast({ title: "تم", description: "تمت إضافة التصنيف بنجاح" });
+    } catch (e: any) {
+      toast({
+        title: "خطأ",
+        description: e.response?.data?.message || "فشل إضافة التصنيف",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <div className="flex gap-2">
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="flex-1">
+          <SelectValue placeholder="اختر التصنيف" />
+        </SelectTrigger>
+        <SelectContent>
+          {categories?.map((c) => (
+            <SelectItem key={c.id} value={c.id.toString()}>
+              {c.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="icon">
+            <Plus className="w-4 h-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-3">
+          <div className="space-y-2">
+            <h4 className="font-medium text-xs leading-none">إضافة تصنيف جديد</h4>
+            <Input
+              placeholder="اسم التصنيف"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="h-8 text-xs"
+            />
+            <Button
+              size="sm"
+              className="w-full h-8 text-xs"
+              onClick={handleCreate}
+              disabled={createCategory.isPending}
+            >
+              {createCategory.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "إضافة"}
+            </Button>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Courses page
+// ---------------------------------------------------------------------------
+
 export default function Courses() {
   const [search, setSearch] = useState("");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [manageCourseId, setManageCourseId] = useState<number | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [expandedCourseIds, setExpandedCourseIds] = useState<number[]>([]);
+  const [manageClassId, setManageClassId] = useState<number | null>(null);
+  const [editCourse, setEditCourse] = useState<Course | null>(null);
+  const [addClassCourse, setAddClassCourse] = useState<Course | null>(null);
   const { toast } = useToast();
 
-  // Create-form state
+  // Create-course form state
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [color, setColor] = useState("teal");
   const [description, setDescription] = useState("");
-  const [year, setYear] = useState<string>("");
-  const [yearId, setYearId] = useState<string>("");
-  const [categoryId, setCategoryId] = useState<string>("");
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [newYearTitle, setNewYearTitle] = useState("");
-  const [newYearStart, setNewYearStart] = useState("");
-  const [newYearEnd, setNewYearEnd] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [firstClassName, setFirstClassName] = useState("شعبة 1");
+  const [firstClassYearId, setFirstClassYearId] = useState("");
   const [newTeacherName, setNewTeacherName] = useState("");
-  const [isPinned, setIsPinned] = useState(false);
-  const [scheduleDetails, setScheduleDetails] = useState<
-    { day: string; from_time: string; to_time: string; note: string }[]
-  >([]);
+  const [scheduleDetails, setScheduleDetails] = useState<ScheduleItem[]>([]);
 
-  // Bulk duplicate state
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  // Bulk class duplication state
+  const [selectedClassIds, setSelectedClassIds] = useState<number[]>([]);
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [bulkYearId, setBulkYearId] = useState("");
   const [bulkYear, setBulkYear] = useState("");
+  const [bulkName, setBulkName] = useState("");
   const [bulkCopyStudents, setBulkCopyStudents] = useState(false);
 
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
-  // API – list
   const { data: coursesPage, isLoading } = useCourses(showArchived);
-  const { data: years } = useYears();
-  const { data: categories } = useCategories();
-  const createMutation = useCreateCourse();
-  const updateCourseMutation = useUpdateCourse();
-  const duplicateCoursesMutation = useDuplicateCoursesToYear();
-  const createYearMutation = useCreateYear();
-  const createCategoryMutation = useCreateCategory();
+  const courses = coursesPage?.data ?? [];
+
+  const createCourse = useCreateCourse();
+  const createClass = useCreateClass();
   const createTeacherMutation = useCreateTeacher();
   const archiveCourseMutation = useArchiveCourse();
   const unarchiveCourseMutation = useUnarchiveCourse();
-  const courses = coursesPage?.data ?? [];
+  const updateClassMutation = useUpdateClass();
+  const duplicateClassesMutation = useDuplicateClassesToYear();
+
+  // Search matches a course title or any of its class names
+  const filtered = search
+    ? courses.filter(
+      (c) =>
+        c.title.includes(search) ||
+        (c.classes ?? []).some((cl) => cl.name.includes(search))
+    )
+    : courses;
+
+  const allClasses = filtered.flatMap((c) => c.classes ?? []);
+
+  const toggleExpanded = (courseId: number) => {
+    setExpandedCourseIds((prev) =>
+      prev.includes(courseId) ? prev.filter((id) => id !== courseId) : [...prev, courseId]
+    );
+  };
+
+  // --- Bulk selection ---
+  const toggleSelectedClass = (classId: number) => {
+    setSelectedClassIds((prev) =>
+      prev.includes(classId) ? prev.filter((id) => id !== classId) : [...prev, classId]
+    );
+  };
+
+  const visibleClassIds = allClasses.map((c) => c.id);
+  const allVisibleSelected =
+    visibleClassIds.length > 0 && visibleClassIds.every((id) => selectedClassIds.includes(id));
+
+  const toggleSelectAll = () => {
+    setSelectedClassIds(allVisibleSelected ? [] : visibleClassIds);
+    if (!allVisibleSelected) setExpandedCourseIds(filtered.map((c) => c.id));
+  };
+
+  const openBulkDialog = () => {
+    setBulkYearId("");
+    setBulkYear("");
+    setBulkName("");
+    setBulkCopyStudents(false);
+    setBulkDialogOpen(true);
+  };
+
+  const handleBulkDuplicate = () => {
+    if (!bulkYearId || selectedClassIds.length === 0) return;
+    duplicateClassesMutation.mutate(
+      {
+        class_ids: selectedClassIds,
+        year_id: Number(bulkYearId),
+        year: bulkYear.trim() ? Number(bulkYear) : null,
+        name: bulkName.trim() || null,
+        copy_students: bulkCopyStudents,
+      },
+      {
+        onSuccess: (res) => {
+          toast({
+            title: "تم النسخ",
+            description: `تم نسخ ${res.count} شعبة للسنة الجديدة`,
+          });
+          setBulkDialogOpen(false);
+          setSelectedClassIds([]);
+        },
+        onError: (err: any) =>
+          toast({
+            title: "خطأ",
+            description: err.response?.data?.message || "تعذّر نسخ الشعب",
+            variant: "destructive",
+          }),
+      }
+    );
+  };
+
+  const handleTogglePinned = (e: React.MouseEvent, courseClass: CourseClass) => {
+    e.stopPropagation();
+    updateClassMutation.mutate(
+      { id: courseClass.id, data: { is_pinned: !courseClass.is_pinned } },
+      {
+        onSuccess: () =>
+          toast({
+            title: courseClass.is_pinned ? "تم إلغاء التثبيت" : "تم التثبيت",
+            description: courseClass.is_pinned
+              ? "لن تظهر الشعبة إلا في سنتها الدراسية"
+              : "ستظهر الشعبة في كل السنوات الدراسية",
+          }),
+        onError: (err: any) =>
+          toast({
+            title: "خطأ",
+            description: err.response?.data?.message || "تعذّر تحديث التثبيت",
+            variant: "destructive",
+          }),
+      }
+    );
+  };
 
   const handleArchiveCourse = (e: React.MouseEvent, courseId: number) => {
     e.stopPropagation();
@@ -158,179 +538,43 @@ export default function Courses() {
     });
   };
 
-  const handleTogglePinned = (e: React.MouseEvent, course: Course) => {
-    e.stopPropagation();
-    updateCourseMutation.mutate(
-      { id: course.id, data: { is_pinned: !course.is_pinned } },
-      {
-        onSuccess: () =>
-          toast({
-            title: course.is_pinned ? "تم إلغاء التثبيت" : "تم التثبيت",
-            description: course.is_pinned
-              ? "لن تظهر الدورة إلا في سنتها الدراسية"
-              : "ستظهر الدورة في كل السنوات الدراسية",
-          }),
-        onError: (err: any) =>
-          toast({
-            title: "خطأ",
-            description: err.response?.data?.message || "تعذّر تحديث التثبيت",
-            variant: "destructive",
-          }),
-      }
-    );
-  };
-
-  const filtered = search
-    ? courses.filter((c) => c.title.includes(search))
-    : courses;
-
-  // --- Bulk selection ---
-  const toggleSelected = (courseId: number) => {
-    setSelectedIds((prev) =>
-      prev.includes(courseId)
-        ? prev.filter((id) => id !== courseId)
-        : [...prev, courseId]
-    );
-  };
-
-  const visibleIds = filtered.map((c) => c.id);
-  const allVisibleSelected =
-    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
-
-  const toggleSelectAll = () => {
-    setSelectedIds(allVisibleSelected ? [] : visibleIds);
-  };
-
-  const openBulkDialog = () => {
-    setBulkYearId("");
-    setBulkYear("");
-    setBulkCopyStudents(false);
-    setBulkDialogOpen(true);
-  };
-
-  const handleBulkDuplicate = () => {
-    if (!bulkYearId || selectedIds.length === 0) return;
-    duplicateCoursesMutation.mutate(
-      {
-        course_ids: selectedIds,
-        year_id: Number(bulkYearId),
-        year: bulkYear.trim() ? Number(bulkYear) : null,
-        copy_students: bulkCopyStudents,
-      },
-      {
-        onSuccess: (res) => {
-          toast({
-            title: "تم النسخ",
-            description: `تم نسخ ${res.count} دورة للسنة الجديدة`,
-          });
-          setBulkDialogOpen(false);
-          setSelectedIds([]);
-        },
-        onError: (err: any) =>
-          toast({
-            title: "خطأ",
-            description: err.response?.data?.message || "تعذّر نسخ الدورات",
-            variant: "destructive",
-          }),
-      }
-    );
-  };
-
   const resetForm = () => {
     setTitle("");
     setColor("teal");
     setDescription("");
-    setYear("");
-    setYearId("");
     setCategoryId("");
+    setFirstClassName("شعبة 1");
+    setFirstClassYearId("");
     setNewTeacherName("");
-    setIsPinned(false);
     setScheduleDetails([]);
   };
 
-  const handleCreateYear = async (target: "create" | "bulk" = "create") => {
-    if (!newYearTitle.trim() || !newYearStart.trim() || !newYearEnd.trim()) return;
-    try {
-      const newYear = await createYearMutation.mutateAsync({
-        title: newYearTitle,
-        start_year: newYearStart,
-        end_year: newYearEnd
-      });
-      setNewYearTitle("");
-      setNewYearStart("");
-      setNewYearEnd("");
-      if (target === "bulk") {
-        setBulkYearId(newYear.id.toString());
-      } else {
-        setYearId(newYear.id.toString());
-      }
-      toast({ title: "تم", description: "تمت إضافة السنة بنجاح" });
-    } catch (e: any) {
-      toast({
-        title: "خطأ",
-        description: e.response?.data?.message || "فشل إضافة السنة",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleCreateCategory = async () => {
-    if (!newCategoryName.trim()) return;
-    try {
-      const category = await createCategoryMutation.mutateAsync({
-        name: newCategoryName.trim(),
-      });
-      setNewCategoryName("");
-      setCategoryId(category.id.toString());
-      toast({ title: "تم", description: "تمت إضافة التصنيف بنجاح" });
-    } catch (e: any) {
-      toast({
-        title: "خطأ",
-        description: e.response?.data?.message || "فشل إضافة التصنيف",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const addScheduleItem = () => {
-    setScheduleDetails([...scheduleDetails, { day: "Sunday", from_time: "10:00", to_time: "12:00", note: "" }]);
-  };
-
-  const removeScheduleItem = (index: number) => {
-    setScheduleDetails(scheduleDetails.filter((_, i) => i !== index));
-  };
-
-  const updateScheduleItem = (index: number, field: keyof typeof scheduleDetails[0], value: string) => {
-    const newDetails = [...scheduleDetails];
-    newDetails[index] = { ...newDetails[index], [field]: value };
-    setScheduleDetails(newDetails);
-  };
-
+  /** Create the course together with its first class */
   const handleCreate = async () => {
     if (!title.trim()) return;
     try {
-      const course = await createMutation.mutateAsync({
+      const course = await createCourse.mutateAsync({
         title: title.trim(),
         color,
         description: description.trim() || undefined,
-        year: year ? parseInt(year) : undefined,
-        year_id: yearId ? parseInt(yearId) : undefined,
         category_id: categoryId ? parseInt(categoryId) : undefined,
+      });
+
+      const courseClass = await createClass.mutateAsync({
+        course_id: course.id,
+        name: firstClassName.trim() || "شعبة 1",
+        year_id: firstClassYearId ? parseInt(firstClassYearId) : undefined,
         schedule_details: scheduleDetails.length > 0 ? scheduleDetails : undefined,
-        is_pinned: isPinned,
       });
 
       if (newTeacherName.trim()) {
         const teacher = await createTeacherMutation.mutateAsync({
           name: newTeacherName.trim(),
         });
-        await coursesApi.assignTeacher(course.id, teacher.id);
+        await classesApi.assignTeacher(courseClass.id, teacher.id);
       }
 
-      toast({
-        title: "تمت الإضافة",
-        description: "تمت إضافة الدورة بنجاح",
-      });
+      toast({ title: "تمت الإضافة", description: "تمت إضافة الدورة وشعبتها الأولى" });
       resetForm();
       setDialogOpen(false);
     } catch (err: any) {
@@ -342,11 +586,14 @@ export default function Courses() {
     }
   };
 
+  const busy =
+    createCourse.isPending || createClass.isPending || createTeacherMutation.isPending;
+
   return (
     <div className="space-y-6">
       <div className="page-header">
         <h1 className="page-title">الدورات</h1>
-        <p className="page-subtitle">إدارة الدورات والمواد الدراسية</p>
+        <p className="page-subtitle">إدارة الدورات وشعبها لكل سنة دراسية</p>
       </div>
 
       {/* Toolbar */}
@@ -358,7 +605,7 @@ export default function Courses() {
               إضافة دورة
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>إضافة دورة جديدة</DialogTitle>
             </DialogHeader>
@@ -403,237 +650,44 @@ export default function Courses() {
 
               <div className="space-y-2">
                 <Label>التصنيف</Label>
-                <div className="flex gap-2">
-                  <Select value={categoryId} onValueChange={setCategoryId}>
-                    <SelectTrigger className="flex-1">
-                      <SelectValue placeholder="اختر التصنيف" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories?.map((c) => (
-                        <SelectItem key={c.id} value={c.id.toString()}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <CategoryPicker value={categoryId} onChange={setCategoryId} />
+              </div>
 
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="icon">
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64 p-3">
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-xs leading-none">إضافة تصنيف جديد</h4>
-                        <Input
-                          placeholder="اسم التصنيف"
-                          value={newCategoryName}
-                          onChange={(e) => setNewCategoryName(e.target.value)}
-                          className="h-8 text-xs"
-                        />
-                        <Button
-                          size="sm"
-                          className="w-full h-8 text-xs"
-                          onClick={() => handleCreateCategory()}
-                          disabled={createCategoryMutation.isPending}
-                        >
-                          {createCategoryMutation.isPending ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            "إضافة"
-                          )}
-                        </Button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+              <div className="rounded-md border p-3 space-y-4 bg-muted/20">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-primary" />
+                  <h4 className="text-sm font-semibold">الشعبة الأولى</h4>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label>السنة الدراسية (الفوج)</Label>
-                <div className="flex gap-2">
-                  <Select value={yearId} onValueChange={setYearId}>
-                    <SelectTrigger className="flex-1">
-                      <SelectValue placeholder="اختر السنة" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {years?.map((y) => (
-                        <SelectItem key={y.id} value={y.id.toString()}>
-                          {y.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="icon">
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64 p-3">
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-xs leading-none">إضافة سنة جديدة</h4>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Input
-                            placeholder="اللقب (مثال: فوج)"
-                            value={newYearTitle}
-                            onChange={(e) => setNewYearTitle(e.target.value)}
-                            className="h-8 text-xs col-span-2"
-                          />
-                          <Input
-                            placeholder="2025"
-                            value={newYearStart}
-                            onChange={(e) => setNewYearStart(e.target.value)}
-                            className="h-8 text-xs"
-                            type="number"
-                            maxLength={4}
-                          />
-                          <Input
-                            placeholder="2026"
-                            value={newYearEnd}
-                            onChange={(e) => setNewYearEnd(e.target.value)}
-                            className="h-8 text-xs"
-                            type="number"
-                            maxLength={4}
-                          />
-                        </div>
-                        <Button
-                          size="sm"
-                          className="w-full h-8 text-xs"
-                          onClick={() => handleCreateYear()}
-                          disabled={createYearMutation.isPending}
-                        >
-                          {createYearMutation.isPending ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            "إضافة"
-                          )}
-                        </Button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>السنة (رقم - اختياري)</Label>
-                <Input
-                  type="number"
-                  placeholder="2026"
-                  value={year}
-                  onChange={(e) => setYear(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>معلم الدورة (اختياري)</Label>
-                <Input
-                  placeholder="اسم المعلم — يُنشأ تلقائياً عند الحفظ"
-                  value={newTeacherName}
-                  onChange={(e) => setNewTeacherName(e.target.value)}
-                />
-              </div>
-
-              <div className="flex items-start justify-end gap-2 rounded-md border p-3">
-                <div className="text-end">
-                  <Label htmlFor="create-course-pinned" className="cursor-pointer">
-                    دورة ثابتة
-                  </Label>
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    تظهر في صفحة اليوم مهما كانت السنة المختارة
-                  </p>
-                </div>
-                <Checkbox
-                  id="create-course-pinned"
-                  className="mt-1"
-                  checked={isPinned}
-                  onCheckedChange={(checked) => setIsPinned(checked === true)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>الأيام والأوقات</Label>
                 <div className="space-y-2">
-                  {scheduleDetails.map((item, index) => (
-                    <div key={index} className="flex gap-2 items-start">
-                      <Select
-                        value={item.day}
-                        onValueChange={(val) => updateScheduleItem(index, "day", val)}
-                      >
-                        <SelectTrigger className="w-[110px]">
-                          <SelectValue placeholder="اليوم" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map(
-                            (day) => (
-                              <SelectItem key={day} value={day}>
-                                {new Intl.DateTimeFormat("ar-EG", { weekday: "long" }).format(
-                                  new Date(
-                                    day === "Sunday" ? "2023-01-01" :
-                                      day === "Monday" ? "2023-01-02" :
-                                        day === "Tuesday" ? "2023-01-03" :
-                                          day === "Wednesday" ? "2023-01-04" :
-                                            day === "Thursday" ? "2023-01-05" :
-                                              day === "Friday" ? "2023-01-06" :
-                                                "2023-01-07"
-                                  )
-                                )}
-                              </SelectItem>
-                            )
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] text-muted-foreground">من</span>
-                        <Input
-                          type="time"
-                          className="w-[90px] h-8 text-xs"
-                          value={item.from_time}
-                          onChange={(e) => updateScheduleItem(index, "from_time", e.target.value)}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] text-muted-foreground">إلى</span>
-                        <Input
-                          type="time"
-                          className="w-[90px] h-8 text-xs"
-                          value={item.to_time}
-                          onChange={(e) => updateScheduleItem(index, "to_time", e.target.value)}
-                        />
-                      </div>
-                      <div className="flex-1 flex flex-col gap-1">
-                        <span className="text-[10px] text-muted-foreground">&nbsp;</span>
-                        <Input
-                          placeholder="ملاحظة"
-                          className="h-8 text-xs"
-                          value={item.note}
-                          onChange={(e) => updateScheduleItem(index, "note", e.target.value)}
-                        />
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive mt-[18px]"
-                        onClick={() => removeScheduleItem(index)}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full gap-2 border-dashed"
-                    onClick={addScheduleItem}
-                  >
-                    <Plus className="w-4 h-4" />
-                    إضافة موعد
-                  </Button>
+                  <Label>اسم الشعبة</Label>
+                  <Input
+                    placeholder="مثال: شعبة أ"
+                    value={firstClassName}
+                    onChange={(e) => setFirstClassName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>السنة الدراسية (الفوج)</Label>
+                  <YearPicker value={firstClassYearId} onChange={setFirstClassYearId} />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>معلم الشعبة (اختياري)</Label>
+                  <Input
+                    placeholder="اسم المعلم — يُنشأ تلقائياً عند الحفظ"
+                    value={newTeacherName}
+                    onChange={(e) => setNewTeacherName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>الأيام والأوقات</Label>
+                  <ScheduleEditor value={scheduleDetails} onChange={setScheduleDetails} />
                 </div>
               </div>
+
               <div className="flex gap-2 pt-2">
                 <Button
                   variant="outline"
@@ -648,17 +702,9 @@ export default function Courses() {
                 <Button
                   onClick={handleCreate}
                   className="flex-1"
-                  disabled={
-                    createMutation.isPending ||
-                    createTeacherMutation.isPending ||
-                    !title.trim()
-                  }
+                  disabled={busy || !title.trim()}
                 >
-                  {createMutation.isPending || createTeacherMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    "حفظ"
-                  )}
+                  {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "حفظ"}
                 </Button>
               </div>
             </div>
@@ -672,7 +718,7 @@ export default function Courses() {
             className="gap-2"
             onClick={() => {
               setShowArchived(!showArchived);
-              setSelectedIds([]);
+              setSelectedClassIds([]);
             }}
           >
             <Archive className="w-4 h-4" />
@@ -691,29 +737,27 @@ export default function Courses() {
       </div>
 
       {/* Bulk actions bar */}
-      {isAdmin && selectedIds.length > 0 && (
+      {isAdmin && selectedClassIds.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-primary/5 px-4 py-3">
           <div className="flex items-center gap-2">
             <Button
               onClick={openBulkDialog}
               size="sm"
               className="gap-2"
-              disabled={duplicateCoursesMutation.isPending}
+              disabled={duplicateClassesMutation.isPending}
             >
-              {duplicateCoursesMutation.isPending ? (
+              {duplicateClassesMutation.isPending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Copy className="w-4 h-4" />
               )}
               نسخ لسنة جديدة
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setSelectedIds([])}>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedClassIds([])}>
               إلغاء التحديد
             </Button>
           </div>
-          <p className="text-sm font-medium">
-            تم اختيار {selectedIds.length} دورة
-          </p>
+          <p className="text-sm font-medium">تم اختيار {selectedClassIds.length} شعبة</p>
         </div>
       )}
 
@@ -721,78 +765,25 @@ export default function Courses() {
       <Dialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>نسخ الدورات المحددة لسنة جديدة</DialogTitle>
+            <DialogTitle>نسخ الشعب المحددة لسنة جديدة</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <p className="text-sm text-muted-foreground text-end">
-              سيتم نسخ {selectedIds.length} دورة مع معلميها
+              سيتم نسخ {selectedClassIds.length} شعبة مع معلميها، وتبقى كل شعبة ضمن دورتها
             </p>
 
             <div className="space-y-2">
               <Label>السنة الدراسية الجديدة</Label>
-              <div className="flex gap-2">
-                <Select value={bulkYearId} onValueChange={setBulkYearId}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="اختر السنة" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {years?.map((y) => (
-                      <SelectItem key={y.id} value={y.id.toString()}>
-                        {y.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <YearPicker value={bulkYearId} onChange={setBulkYearId} />
+            </div>
 
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="icon">
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-64 p-3">
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-xs leading-none">إضافة سنة جديدة</h4>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Input
-                          placeholder="اللقب (مثال: فوج)"
-                          value={newYearTitle}
-                          onChange={(e) => setNewYearTitle(e.target.value)}
-                          className="h-8 text-xs col-span-2"
-                        />
-                        <Input
-                          placeholder="2026"
-                          value={newYearStart}
-                          onChange={(e) => setNewYearStart(e.target.value)}
-                          className="h-8 text-xs"
-                          type="number"
-                          maxLength={4}
-                        />
-                        <Input
-                          placeholder="2027"
-                          value={newYearEnd}
-                          onChange={(e) => setNewYearEnd(e.target.value)}
-                          className="h-8 text-xs"
-                          type="number"
-                          maxLength={4}
-                        />
-                      </div>
-                      <Button
-                        size="sm"
-                        className="w-full h-8 text-xs"
-                        onClick={() => handleCreateYear("bulk")}
-                        disabled={createYearMutation.isPending}
-                      >
-                        {createYearMutation.isPending ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          "إضافة"
-                        )}
-                      </Button>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
+            <div className="space-y-2">
+              <Label>اسم الشعب الجديدة (اختياري)</Label>
+              <Input
+                placeholder="يبقى اسم كل شعبة كما هو"
+                value={bulkName}
+                onChange={(e) => setBulkName(e.target.value)}
+              />
             </div>
 
             <div className="space-y-2">
@@ -817,19 +808,15 @@ export default function Courses() {
             </div>
 
             <div className="flex gap-2 pt-2">
-              <Button
-                variant="outline"
-                onClick={() => setBulkDialogOpen(false)}
-                className="flex-1"
-              >
+              <Button variant="outline" onClick={() => setBulkDialogOpen(false)} className="flex-1">
                 إلغاء
               </Button>
               <Button
                 onClick={handleBulkDuplicate}
                 className="flex-1"
-                disabled={duplicateCoursesMutation.isPending || !bulkYearId}
+                disabled={duplicateClassesMutation.isPending || !bulkYearId}
               >
-                {duplicateCoursesMutation.isPending ? (
+                {duplicateClassesMutation.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   "نسخ"
@@ -847,136 +834,218 @@ export default function Courses() {
         </div>
       ) : (
         <div className="bg-card rounded-xl border overflow-hidden">
-          <div className={`grid ${isAdmin ? "grid-cols-[auto_1fr_auto_auto_auto_auto_auto]" : "grid-cols-[1fr_auto_auto_auto]"} gap-4 px-5 py-3 border-b bg-muted/30 text-xs font-semibold text-muted-foreground`}>
+          <div className="flex items-center gap-3 px-5 py-3 border-b bg-muted/30 text-xs font-semibold text-muted-foreground">
             {isAdmin && (
               <Checkbox
                 checked={allVisibleSelected}
                 onCheckedChange={toggleSelectAll}
-                aria-label="تحديد كل الدورات"
-                disabled={filtered.length === 0}
+                aria-label="تحديد كل الشعب"
+                disabled={visibleClassIds.length === 0}
               />
             )}
-            <span className="text-start">اسم الدورة</span>
-            <span>اللون</span>
-            <span>المعلمون</span>
-            <span>الطلاب</span>
-            {isAdmin && <span></span>}
-            {isAdmin && <span></span>}
+            <span className="flex-1 text-start">اسم الدورة</span>
+            <span className="w-20 text-center">الشعب</span>
+            <span className="w-20 text-center">الطلاب</span>
+            {isAdmin && <span className="w-32" />}
           </div>
+
           {filtered.map((course) => {
             const colorTag = toColorTag(course.color);
+            const classes = course.classes ?? [];
+            const expanded = expandedCourseIds.includes(course.id);
+
             return (
-              <div
-                key={course.id}
-                className={`w-full grid ${isAdmin ? "grid-cols-[auto_1fr_auto_auto_auto_auto_auto]" : "grid-cols-[1fr_auto_auto_auto]"} gap-4 px-5 py-4 border-b last:border-b-0 hover:bg-muted/20 transition-colors items-center ${course.archived_at ? "opacity-60" : ""}`}
-              >
-                {isAdmin && (
-                  <Checkbox
-                    checked={selectedIds.includes(course.id)}
-                    onCheckedChange={() => toggleSelected(course.id)}
-                    aria-label={`تحديد ${course.title}`}
-                  />
-                )}
-                <button
-                  className="flex items-center gap-3 text-start min-w-0"
-                  onClick={() => setManageCourseId(course.id)}
-                >
-                  <div
-                    className={`w-2 h-8 rounded-full course-tag-${colorTag} flex-shrink-0`}
-                    style={{ minWidth: 8 }}
-                  />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium text-sm">{course.title}</p>
-                      {course.archived_at && (
-                        <Badge variant="secondary" className="text-[10px] h-4 px-1">مؤرشف</Badge>
-                      )}
-                      {course.is_pinned && (
-                        <Badge className="text-[10px] h-4 px-1 gap-1">
-                          <Pin className="w-2.5 h-2.5" />
-                          ثابت
-                        </Badge>
-                      )}
-                      {course.category && (
-                        <Badge variant="outline" className="text-[10px] h-4 px-1">
-                          {course.category.name}
-                        </Badge>
-                      )}
-                      {course.academic_year && (
-                        <Badge variant="secondary" className="text-[10px] h-4 px-1">
-                          {course.academic_year.name}
-                        </Badge>
-                      )}
-                      {course.year && (
-                        <Badge variant="outline" className="text-[10px] h-4 px-1">
-                          {course.year}
-                        </Badge>
+              <div key={course.id} className={course.archived_at ? "opacity-60" : ""}>
+                {/* Course row */}
+                <div className="flex items-center gap-3 px-5 py-4 border-b hover:bg-muted/20 transition-colors">
+                  {isAdmin && <span className="w-4" />}
+                  <button
+                    className="flex items-center gap-3 text-start min-w-0 flex-1"
+                    onClick={() => toggleExpanded(course.id)}
+                  >
+                    {expanded ? (
+                      <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    ) : (
+                      <ChevronLeft className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    )}
+                    <div
+                      className={`w-2 h-8 rounded-full course-tag-${colorTag} flex-shrink-0`}
+                      style={{ minWidth: 8 }}
+                    />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-sm">{course.title}</p>
+                        {course.archived_at && (
+                          <Badge variant="secondary" className="text-[10px] h-4 px-1">مؤرشف</Badge>
+                        )}
+                        {course.category && (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1">
+                            {course.category.name}
+                          </Badge>
+                        )}
+                      </div>
+                      {course.description && (
+                        <p className="text-xs text-muted-foreground">{course.description}</p>
                       )}
                     </div>
-                    {course.description && (
-                      <p className="text-xs text-muted-foreground">
-                        {course.description}
-                      </p>
+                  </button>
+
+                  <div className="w-20 flex items-center justify-center gap-1 text-sm text-muted-foreground">
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>{course.classes_count ?? classes.length}</span>
+                  </div>
+                  <div className="w-20 flex items-center justify-center gap-1 text-sm text-muted-foreground">
+                    <GraduationCap className="w-3.5 h-3.5" />
+                    <span>{course.students_count ?? 0}</span>
+                  </div>
+
+                  {isAdmin && (
+                    <div className="w-32 flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-primary"
+                        onClick={() => setAddClassCourse(course)}
+                        title="إضافة شعبة"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-primary"
+                        onClick={() => setEditCourse(course)}
+                        title="تعديل الدورة"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      {course.archived_at ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          onClick={(e) => handleUnarchiveCourse(e, course.id)}
+                          disabled={unarchiveCourseMutation.isPending}
+                          title="استعادة الدورة"
+                        >
+                          <ArchiveRestore className="w-3.5 h-3.5" />
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-amber-600"
+                          onClick={(e) => handleArchiveCourse(e, course.id)}
+                          disabled={archiveCourseMutation.isPending}
+                          title="أرشفة الدورة"
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Class rows */}
+                {expanded && (
+                  <div className="bg-muted/10 border-b">
+                    {classes.length === 0 ? (
+                      <div className="px-5 py-4 text-sm text-muted-foreground flex items-center justify-between">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5"
+                          onClick={() => setAddClassCourse(course)}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          إضافة شعبة
+                        </Button>
+                        <span>لا توجد شعب في هذه الدورة</span>
+                      </div>
+                    ) : (
+                      classes.map((courseClass) => (
+                        <div
+                          key={courseClass.id}
+                          className="flex items-center gap-3 px-5 py-3 border-t first:border-t-0 hover:bg-muted/30 transition-colors"
+                        >
+                          {isAdmin && (
+                            <Checkbox
+                              checked={selectedClassIds.includes(courseClass.id)}
+                              onCheckedChange={() => toggleSelectedClass(courseClass.id)}
+                              aria-label={`تحديد ${courseClass.name}`}
+                            />
+                          )}
+                          <button
+                            className="flex items-center gap-2 text-start min-w-0 flex-1 ps-7"
+                            onClick={() => setManageClassId(courseClass.id)}
+                          >
+                            <Layers className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-medium">{courseClass.name}</p>
+                                {courseClass.is_pinned && (
+                                  <Badge className="text-[10px] h-4 px-1 gap-1">
+                                    <Pin className="w-2.5 h-2.5" />
+                                    ثابت
+                                  </Badge>
+                                )}
+                                {courseClass.academic_year && (
+                                  <Badge variant="secondary" className="text-[10px] h-4 px-1">
+                                    {courseClass.academic_year.name}
+                                  </Badge>
+                                )}
+                                {courseClass.year && (
+                                  <Badge variant="outline" className="text-[10px] h-4 px-1">
+                                    {courseClass.year}
+                                  </Badge>
+                                )}
+                              </div>
+                              {(courseClass.teachers ?? []).length > 0 && (
+                                <p className="text-xs text-muted-foreground">
+                                  {courseClass.teachers!
+                                    .map((t) => t.user?.name ?? `معلم #${t.id}`)
+                                    .join("، ")}
+                                </p>
+                              )}
+                            </div>
+                          </button>
+
+                          <div className="w-20 flex items-center justify-center gap-1 text-sm text-muted-foreground">
+                            <Users className="w-3.5 h-3.5" />
+                            <span>{courseClass.teachers_count ?? 0}</span>
+                          </div>
+                          <div className="w-20 flex items-center justify-center gap-1 text-sm text-muted-foreground">
+                            <GraduationCap className="w-3.5 h-3.5" />
+                            <span>{courseClass.students_count ?? 0}</span>
+                          </div>
+
+                          {isAdmin && (
+                            <div className="w-32 flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`h-8 w-8 ${courseClass.is_pinned ? "text-primary" : "text-muted-foreground hover:text-primary"}`}
+                                onClick={(e) => handleTogglePinned(e, courseClass)}
+                                disabled={updateClassMutation.isPending}
+                                title={courseClass.is_pinned ? "إلغاء التثبيت" : "تثبيت الشعبة (تظهر في كل السنوات)"}
+                              >
+                                {courseClass.is_pinned ? (
+                                  <PinOff className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Pin className="w-3.5 h-3.5" />
+                                )}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))
                     )}
                   </div>
-                </button>
-                <span
-                  className={`course-tag course-tag-${colorTag} text-[10px]`}
-                >
-                  {colorTag}
-                </span>
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <Users className="w-3.5 h-3.5" />
-                  <span>{course.teachers_count ?? 0}</span>
-                </div>
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <GraduationCap className="w-3.5 h-3.5" />
-                  <span>{course.students_count ?? 0}</span>
-                </div>
-                {isAdmin && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={`h-8 w-8 ${course.is_pinned ? "text-primary" : "text-muted-foreground hover:text-primary"}`}
-                    onClick={(e) => handleTogglePinned(e, course)}
-                    disabled={updateCourseMutation.isPending}
-                    title={course.is_pinned ? "إلغاء التثبيت" : "تثبيت الدورة (تظهر في كل السنوات)"}
-                  >
-                    {course.is_pinned ? (
-                      <PinOff className="w-3.5 h-3.5" />
-                    ) : (
-                      <Pin className="w-3.5 h-3.5" />
-                    )}
-                  </Button>
-                )}
-                {isAdmin && (
-                  course.archived_at ? (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-primary"
-                      onClick={(e) => handleUnarchiveCourse(e, course.id)}
-                      disabled={unarchiveCourseMutation.isPending}
-                      title="استعادة الدورة"
-                    >
-                      <ArchiveRestore className="w-3.5 h-3.5" />
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-amber-600"
-                      onClick={(e) => handleArchiveCourse(e, course.id)}
-                      disabled={archiveCourseMutation.isPending}
-                      title="أرشفة الدورة"
-                    >
-                      <Archive className="w-3.5 h-3.5" />
-                    </Button>
-                  )
                 )}
               </div>
             );
           })}
+
           {filtered.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
               <BookOpen className="w-10 h-10 mx-auto mb-2 opacity-40" />
@@ -986,91 +1055,444 @@ export default function Courses() {
         </div>
       )}
 
-      {/* Course management sheet */}
-      <CourseManageSheet
-        courseId={manageCourseId}
-        open={manageCourseId !== null}
-        onClose={() => setManageCourseId(null)}
+      {/* Course edit dialog */}
+      <CourseEditDialog course={editCourse} onClose={() => setEditCourse(null)} />
+
+      {/* Add class dialog */}
+      <AddClassDialog course={addClassCourse} onClose={() => setAddClassCourse(null)} />
+
+      {/* Class management sheet */}
+      <ClassManageSheet
+        classId={manageClassId}
+        open={manageClassId !== null}
+        onClose={() => setManageClassId(null)}
       />
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Course manage sheet – assign / remove teachers & students
+// Course edit / delete dialog
 // ---------------------------------------------------------------------------
 
-function CourseManageSheet({
-  courseId,
+function CourseEditDialog({
+  course,
+  onClose,
+}: {
+  course: Course | null;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const updateCourse = useUpdateCourse();
+  const deleteCourse = useDeleteCourse();
+
+  const [title, setTitle] = useState("");
+  const [color, setColor] = useState("teal");
+  const [description, setDescription] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+
+  useEffect(() => {
+    if (course) {
+      setTitle(course.title);
+      setColor(course.color || "teal");
+      setDescription(course.description || "");
+      setCategoryId(course.category_id?.toString() || "");
+    }
+  }, [course]);
+
+  if (!course) return null;
+
+  const handleUpdate = () => {
+    updateCourse.mutate(
+      {
+        id: course.id,
+        data: {
+          title,
+          color,
+          description,
+          category_id: categoryId ? parseInt(categoryId) : null,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "تم التحديث", description: "تم تحديث بيانات الدورة بنجاح" });
+          onClose();
+        },
+        onError: (err: any) =>
+          toast({
+            title: "خطأ",
+            description: err.response?.data?.message || "تعذّر التحديث",
+            variant: "destructive",
+          }),
+      }
+    );
+  };
+
+  const handleDelete = () => {
+    if (
+      !confirm(
+        "سيتم حذف الدورة وكل شعبها وسجلات الحضور الخاصة بها. لا يمكن التراجع عن هذا الإجراء. هل أنت متأكد؟"
+      )
+    )
+      return;
+
+    deleteCourse.mutate(course.id, {
+      onSuccess: () => {
+        toast({ title: "تم الحذف", description: "تم حذف الدورة بنجاح" });
+        onClose();
+      },
+      onError: (err: any) =>
+        toast({
+          title: "خطأ",
+          description: err.response?.data?.message || "تعذّر الحذف",
+          variant: "destructive",
+        }),
+    });
+  };
+
+  return (
+    <Dialog open={!!course} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>تعديل الدورة</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          <div className="space-y-2">
+            <Label>اسم الدورة</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>اللون</Label>
+            <Select value={color} onValueChange={setColor}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {colorOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`w-3 h-3 rounded-full course-tag-${opt.value}`}
+                        style={{ display: "inline-block" }}
+                      />
+                      {opt.label}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>من جيل الى جيل</Label>
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>التصنيف</Label>
+            <CategoryPicker value={categoryId} onChange={setCategoryId} />
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteCourse.isPending}
+              className="gap-2"
+              title="حذف الدورة"
+            >
+              {deleteCourse.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+            </Button>
+            <Button variant="outline" onClick={onClose} className="flex-1">
+              إلغاء
+            </Button>
+            <Button
+              onClick={handleUpdate}
+              className="flex-1"
+              disabled={updateCourse.isPending || !title.trim()}
+            >
+              {updateCourse.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "حفظ"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Add a class to an existing course
+// ---------------------------------------------------------------------------
+
+function AddClassDialog({
+  course,
+  onClose,
+}: {
+  course: Course | null;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const createClass = useCreateClass();
+  const duplicateClass = useDuplicateClassToYear();
+
+  const [name, setName] = useState("");
+  const [yearId, setYearId] = useState("");
+  const [year, setYear] = useState("");
+  const [isPinned, setIsPinned] = useState(false);
+  const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
+  /** "" = start empty, otherwise the id of the class to copy from */
+  const [copyFromClassId, setCopyFromClassId] = useState("");
+  const [copyStudents, setCopyStudents] = useState(true);
+
+  const existingClasses = course?.classes ?? [];
+
+  useEffect(() => {
+    if (course) {
+      setName(`شعبة ${existingClasses.length + 1}`);
+      setYearId("");
+      setYear("");
+      setIsPinned(false);
+      setSchedule([]);
+      setCopyFromClassId("");
+      setCopyStudents(true);
+    }
+  }, [course]);
+
+  if (!course) return null;
+
+  const handleSubmit = () => {
+    if (!name.trim()) return;
+
+    const onSuccess = () => {
+      toast({ title: "تمت الإضافة", description: `تمت إضافة ${name.trim()} إلى ${course.title}` });
+      onClose();
+    };
+    const onError = (err: any) =>
+      toast({
+        title: "خطأ",
+        description: err.response?.data?.message || "تعذّر إضافة الشعبة",
+        variant: "destructive",
+      });
+
+    // Copying an existing class carries its teachers and – optionally – students
+    if (copyFromClassId) {
+      if (!yearId) {
+        toast({
+          title: "خطأ",
+          description: "يرجى اختيار السنة الدراسية",
+          variant: "destructive",
+        });
+        return;
+      }
+      duplicateClass.mutate(
+        {
+          id: Number(copyFromClassId),
+          data: {
+            year_id: Number(yearId),
+            year: year.trim() ? Number(year) : null,
+            name: name.trim(),
+            copy_students: copyStudents,
+          },
+        },
+        { onSuccess, onError }
+      );
+      return;
+    }
+
+    createClass.mutate(
+      {
+        course_id: course.id,
+        name: name.trim(),
+        year_id: yearId ? Number(yearId) : null,
+        year: year.trim() ? Number(year) : null,
+        schedule_details: schedule,
+        is_pinned: isPinned,
+      },
+      { onSuccess, onError }
+    );
+  };
+
+  const busy = createClass.isPending || duplicateClass.isPending;
+
+  return (
+    <Dialog open={!!course} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>إضافة شعبة إلى {course.title}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          <div className="space-y-2">
+            <Label>اسم الشعبة</Label>
+            <Input
+              placeholder="مثال: شعبة أ"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>السنة الدراسية (الفوج)</Label>
+            <YearPicker value={yearId} onChange={setYearId} />
+          </div>
+
+          <div className="space-y-2">
+            <Label>السنة (رقم - اختياري)</Label>
+            <Input
+              type="number"
+              placeholder="2027"
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+            />
+          </div>
+
+          {existingClasses.length > 0 && (
+            <div className="space-y-2">
+              <Label>نسخ من شعبة موجودة (اختياري)</Label>
+              <Select value={copyFromClassId || "none"} onValueChange={(v) => setCopyFromClassId(v === "none" ? "" : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="البدء بشعبة فارغة" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">البدء بشعبة فارغة</SelectItem>
+                  {existingClasses.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.name}
+                      {c.academic_year ? ` — ${c.academic_year.name}` : ""} ({c.students_count ?? 0} طالب)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                النسخ ينقل معلمي الشعبة ومواعيدها
+              </p>
+            </div>
+          )}
+
+          {copyFromClassId ? (
+            <div className="flex items-center justify-end gap-2 rounded-md border p-3">
+              <Label htmlFor="add-class-copy-students" className="cursor-pointer">
+                نسخ أسماء الطلاب أيضاً
+              </Label>
+              <Checkbox
+                id="add-class-copy-students"
+                checked={copyStudents}
+                onCheckedChange={(checked) => setCopyStudents(checked === true)}
+              />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label>الأيام والأوقات</Label>
+                <ScheduleEditor value={schedule} onChange={setSchedule} />
+              </div>
+
+              <div className="flex items-start justify-end gap-2 rounded-md border p-3">
+                <div className="text-end">
+                  <Label htmlFor="add-class-pinned" className="cursor-pointer">
+                    شعبة ثابتة
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    تظهر في صفحة اليوم مهما كانت السنة المختارة
+                  </p>
+                </div>
+                <Checkbox
+                  id="add-class-pinned"
+                  className="mt-1"
+                  checked={isPinned}
+                  onCheckedChange={(checked) => setIsPinned(checked === true)}
+                />
+              </div>
+            </>
+          )}
+
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" onClick={onClose} className="flex-1">
+              إلغاء
+            </Button>
+            <Button onClick={handleSubmit} className="flex-1" disabled={busy || !name.trim()}>
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "حفظ"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Class management sheet – edit, assign / remove teachers & students
+// ---------------------------------------------------------------------------
+
+function ClassManageSheet({
+  classId,
   open,
   onClose,
 }: {
-  courseId: number | null;
+  classId: number | null;
   open: boolean;
   onClose: () => void;
 }) {
   const { toast } = useToast();
 
-  // Fetch full course detail (includes teachers.user + students)
-  const { data: course, isLoading: courseLoading } = useCourse(courseId!);
+  const { data: courseClass, isLoading: classLoading } = useClass(classId);
 
-  // Fetch all teachers & students for the "add" selects
   const { data: allTeachersPage } = useTeachers();
   const { data: allStudentsData } = useAllStudents();
+  const { data: coursesPage } = useCourses();
   const allTeachers = allTeachersPage?.data ?? [];
+  const allCourses = coursesPage?.data ?? [];
   // Only show students in this course's category (or uncategorized)
+  const categoryId = courseClass?.course?.category_id;
   const allStudents = (allStudentsData ?? []).filter((s) => {
-    if (!course?.category_id) return true;
-    return !s.category_id || s.category_id === course.category_id;
+    if (!categoryId) return true;
+    return !s.category_id || s.category_id === categoryId;
   });
 
-  // Mutations
   const assignTeacher = useAssignTeacher();
   const removeTeacher = useRemoveTeacher();
   const assignStudent = useAssignStudent();
   const removeStudent = useRemoveStudent();
-  const updateCourse = useUpdateCourse();
-  const deleteCourse = useDeleteCourse();
-  const archiveCourse = useArchiveCourse();
-  const unarchiveCourse = useUnarchiveCourse();
-  const duplicateCourse = useDuplicateCourseToYear();
+  const updateClass = useUpdateClass();
+  const deleteClass = useDeleteClass();
+  const archiveClass = useArchiveClass();
+  const unarchiveClass = useUnarchiveClass();
+  const duplicateClass = useDuplicateClassToYear();
   const createTeacherMutation = useCreateTeacher();
+  const createStudentMutation = useCreateStudent();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
-  const isArchived = !!course?.archived_at;
+  const isArchived = !!courseClass?.archived_at;
 
   // Edit form state
   const [isEditing, setIsEditing] = useState(false);
-  const [title, setTitle] = useState("");
-  const [color, setColor] = useState("");
-  const [description, setDescription] = useState("");
+  const [name, setName] = useState("");
+  const [courseId, setCourseId] = useState("");
   const [year, setYear] = useState("");
   const [yearId, setYearId] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [newTeacherName, setNewTeacherName] = useState("");
   const [isPinned, setIsPinned] = useState(false);
+  const [newTeacherName, setNewTeacherName] = useState("");
+  const [scheduleDetails, setScheduleDetails] = useState<ScheduleItem[]>([]);
+
+  // Duplicate dialog state
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [duplicateYearId, setDuplicateYearId] = useState("");
   const [duplicateYear, setDuplicateYear] = useState("");
+  const [duplicateName, setDuplicateName] = useState("");
   const [duplicateCopyStudents, setDuplicateCopyStudents] = useState(false);
-  const [scheduleDetails, setScheduleDetails] = useState<
-    { day: string; from_time: string; to_time: string; note: string }[]
-  >([]);
 
-  // Sync edit form state when course is loaded
+  // Sync edit form state when the class is loaded
   useEffect(() => {
-    if (course && !isEditing) {
-      setTitle(course.title);
-      setColor(course.color || "teal");
-      setDescription(course.description || "");
-      setYear(course.year?.toString() || "");
-      setYearId(course.year_id?.toString() || "");
-      setCategoryId(course.category_id?.toString() || "");
-      setIsPinned(!!course.is_pinned);
+    if (courseClass && !isEditing) {
+      setName(courseClass.name);
+      setCourseId(courseClass.course_id?.toString() || "");
+      setYear(courseClass.year?.toString() || "");
+      setYearId(courseClass.year_id?.toString() || "");
+      setIsPinned(!!courseClass.is_pinned);
       setScheduleDetails(
-        (course.schedule_details || []).map((d: any) => ({
+        (courseClass.schedule_details || []).map((d: any) => ({
           day: d.day,
           from_time: d.from_time || d.time || "10:00",
           to_time: d.to_time || "12:00",
@@ -1078,68 +1500,13 @@ function CourseManageSheet({
         }))
       );
     }
-  }, [course, isEditing]);
+  }, [courseClass, isEditing]);
 
   // Local select values
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>("");
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
-
-  // Student autocomplete & create state
   const [studentComboOpen, setStudentComboOpen] = useState(false);
   const [createStudentDialogOpen, setCreateStudentDialogOpen] = useState(false);
-  const createStudentMutation = useCreateStudent();
-  const createYearMutation = useCreateYear();
-  const createCategoryMutation = useCreateCategory();
-  const { data: years } = useYears();
-  const { data: categories } = useCategories();
-
-  const [newYearTitle, setNewYearTitle] = useState("");
-  const [newYearStart, setNewYearStart] = useState("");
-  const [newYearEnd, setNewYearEnd] = useState("");
-
-  const handleCreateYear = async (target: "edit" | "duplicate" = "edit") => {
-    if (!newYearTitle.trim() || !newYearStart.trim() || !newYearEnd.trim()) return;
-    try {
-      const newYear = await createYearMutation.mutateAsync({
-        title: newYearTitle,
-        start_year: newYearStart,
-        end_year: newYearEnd
-      });
-      setNewYearTitle("");
-      setNewYearStart("");
-      setNewYearEnd("");
-      if (target === "duplicate") {
-        setDuplicateYearId(newYear.id.toString());
-      } else {
-        setYearId(newYear.id.toString());
-      }
-      toast({ title: "تم", description: "تمت إضافة السنة بنجاح" });
-    } catch (e: any) {
-      toast({
-        title: "خطأ",
-        description: e.response?.data?.message || "فشل إضافة السنة",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleCreateCategory = async () => {
-    if (!newCategoryName.trim()) return;
-    try {
-      const category = await createCategoryMutation.mutateAsync({
-        name: newCategoryName.trim(),
-      });
-      setNewCategoryName("");
-      setCategoryId(category.id.toString());
-      toast({ title: "تم", description: "تمت إضافة التصنيف بنجاح" });
-    } catch (e: any) {
-      toast({
-        title: "خطأ",
-        description: e.response?.data?.message || "فشل إضافة التصنيف",
-        variant: "destructive",
-      });
-    }
-  };
 
   const [newStudentData, setNewStudentData] = useState({
     full_name: "",
@@ -1171,13 +1538,15 @@ function CourseManageSheet({
     });
   };
 
+  if (!open || !classId) return null;
+
   const handleCreateStudent = () => {
     if (!newStudentData.full_name.trim()) return;
     createStudentMutation.mutate(
       {
         ...newStudentData,
         date_of_birth: newStudentData.date_of_birth || undefined,
-        category_id: course?.category_id ?? undefined,
+        category_id: categoryId ?? undefined,
       },
       {
         onSuccess: (student) => {
@@ -1185,40 +1554,41 @@ function CourseManageSheet({
           setCreateStudentDialogOpen(false);
           resetNewStudentForm();
           // Automatically assign
-          assignStudent.mutate({ courseId, studentId: student.id }, {
-            onSuccess: () => toast({ title: "تم التسجيل", description: "تم تسجيل الطالب في الدورة" })
-          });
+          assignStudent.mutate(
+            { classId, studentId: student.id },
+            {
+              onSuccess: () =>
+                toast({ title: "تم التسجيل", description: "تم تسجيل الطالب في الشعبة" }),
+            }
+          );
         },
         onError: (err: any) => {
           toast({
             title: "خطأ",
             description: err.response?.data?.message || "تعذّر انشاء الطالب",
-            variant: "destructive"
+            variant: "destructive",
           });
-        }
-      });
+        },
+      }
+    );
   };
 
-  if (!open || !courseId) return null;
-
   const handleUpdate = () => {
-    updateCourse.mutate(
+    updateClass.mutate(
       {
-        id: courseId,
+        id: classId,
         data: {
-          title,
-          color,
-          description,
-          year: year ? parseInt(year) : undefined,
-          year_id: yearId ? parseInt(yearId) : undefined,
-          category_id: categoryId ? parseInt(categoryId) : null,
-          schedule_details: scheduleDetails,
+          name,
+          course_id: courseId ? parseInt(courseId) : undefined,
+          year: year ? parseInt(year) : null,
+          year_id: yearId ? parseInt(yearId) : null,
           is_pinned: isPinned,
+          schedule_details: scheduleDetails,
         },
       },
       {
         onSuccess: () => {
-          toast({ title: "تم التحديث", description: "تم تحديث بيانات الدورة بنجاح" });
+          toast({ title: "تم التحديث", description: "تم تحديث بيانات الشعبة بنجاح" });
           setIsEditing(false);
         },
         onError: (err: any) => {
@@ -1234,12 +1604,13 @@ function CourseManageSheet({
 
   const openDuplicateDialog = () => {
     setDuplicateYearId("");
-    setDuplicateYear(course?.year ? String(course.year + 1) : "");
+    setDuplicateYear(courseClass?.year ? String(courseClass.year + 1) : "");
+    setDuplicateName("");
     setDuplicateCopyStudents(false);
     setDuplicateDialogOpen(true);
   };
 
-  const handleDuplicateCourse = () => {
+  const handleDuplicateClass = () => {
     if (!duplicateYearId) {
       toast({
         title: "خطأ",
@@ -1249,25 +1620,26 @@ function CourseManageSheet({
       return;
     }
 
-    duplicateCourse.mutate(
+    duplicateClass.mutate(
       {
-        id: courseId,
+        id: classId,
         data: {
           year_id: Number(duplicateYearId),
           year: duplicateYear.trim() ? Number(duplicateYear) : null,
+          name: duplicateName.trim() || null,
           copy_students: duplicateCopyStudents,
         },
       },
       {
         onSuccess: () => {
-          toast({ title: "تم النسخ", description: "تم إنشاء الدورة للسنة الجديدة" });
+          toast({ title: "تم النسخ", description: "تم إنشاء الشعبة للسنة الجديدة" });
           setDuplicateDialogOpen(false);
           onClose();
         },
         onError: (err: any) => {
           toast({
             title: "خطأ",
-            description: err.response?.data?.message || "تعذّر نسخ الدورة",
+            description: err.response?.data?.message || "تعذّر نسخ الشعبة",
             variant: "destructive",
           });
         },
@@ -1276,11 +1648,11 @@ function CourseManageSheet({
   };
 
   const handleDelete = () => {
-    if (!confirm("هل أنت متأكد من رغبتك في حذف هذه الدورة؟ لا يمكن التراجع عن هذا الإجراء.")) return;
+    if (!confirm("هل أنت متأكد من رغبتك في حذف هذه الشعبة؟ لا يمكن التراجع عن هذا الإجراء.")) return;
 
-    deleteCourse.mutate(courseId, {
+    deleteClass.mutate(classId, {
       onSuccess: () => {
-        toast({ title: "تم الحذف", description: "تم حذف الدورة بنجاح" });
+        toast({ title: "تم الحذف", description: "تم حذف الشعبة بنجاح" });
         onClose();
       },
       onError: (err: any) => {
@@ -1293,43 +1665,21 @@ function CourseManageSheet({
     });
   };
 
-  const addScheduleItem = () => {
-    setScheduleDetails([...scheduleDetails, { day: "Sunday", from_time: "10:00", to_time: "12:00", note: "" }]);
-  };
+  const assignedTeacherIds = new Set((courseClass?.teachers ?? []).map((t) => t.id));
+  const assignedStudentIds = new Set((courseClass?.students ?? []).map((s) => s.id));
 
-  const removeScheduleItem = (index: number) => {
-    setScheduleDetails(scheduleDetails.filter((_, i) => i !== index));
-  };
+  const availableTeachers = allTeachers.filter((t) => !assignedTeacherIds.has(t.id));
+  const availableStudents = allStudents.filter((s) => !assignedStudentIds.has(s.id));
 
-  const updateScheduleItem = (index: number, field: keyof typeof scheduleDetails[0], value: string) => {
-    const newDetails = [...scheduleDetails];
-    newDetails[index] = { ...newDetails[index], [field]: value };
-    setScheduleDetails(newDetails);
-  };
-
-  const assignedTeacherIds = new Set(
-    (course?.teachers ?? []).map((t) => t.id)
-  );
-  const assignedStudentIds = new Set(
-    (course?.students ?? []).map((s) => s.id)
-  );
-
-  const availableTeachers = allTeachers.filter(
-    (t) => !assignedTeacherIds.has(t.id)
-  );
-  const availableStudents = allStudents.filter(
-    (s) => !assignedStudentIds.has(s.id)
-  );
-
-  const colorTag = toColorTag(course?.color);
+  const colorTag = toColorTag(courseClass?.course?.color);
 
   const handleAssignTeacher = () => {
     if (!selectedTeacherId) return;
     assignTeacher.mutate(
-      { courseId, teacherId: Number(selectedTeacherId) },
+      { classId, teacherId: Number(selectedTeacherId) },
       {
         onSuccess: () => {
-          toast({ title: "تم التعيين", description: "تم تعيين المعلم للدورة" });
+          toast({ title: "تم التعيين", description: "تم تعيين المعلم للشعبة" });
           setSelectedTeacherId("");
         },
         onError: (err: any) =>
@@ -1348,9 +1698,9 @@ function CourseManageSheet({
       const teacher = await createTeacherMutation.mutateAsync({
         name: newTeacherName.trim(),
       });
-      await assignTeacher.mutateAsync({ courseId, teacherId: teacher.id });
+      await assignTeacher.mutateAsync({ classId, teacherId: teacher.id });
       setNewTeacherName("");
-      toast({ title: "تم التعيين", description: "تم إنشاء المعلم وتعيينه للدورة" });
+      toast({ title: "تم التعيين", description: "تم إنشاء المعلم وتعيينه للشعبة" });
     } catch (err: any) {
       toast({
         title: "خطأ",
@@ -1362,13 +1712,10 @@ function CourseManageSheet({
 
   const handleRemoveTeacher = (teacherId: number) => {
     removeTeacher.mutate(
-      { courseId, teacherId },
+      { classId, teacherId },
       {
         onSuccess: () =>
-          toast({
-            title: "تمت الإزالة",
-            description: "تمت إزالة المعلم من الدورة",
-          }),
+          toast({ title: "تمت الإزالة", description: "تمت إزالة المعلم من الشعبة" }),
         onError: (err: any) =>
           toast({
             title: "خطأ",
@@ -1382,13 +1729,10 @@ function CourseManageSheet({
   const handleAssignStudent = () => {
     if (!selectedStudentId) return;
     assignStudent.mutate(
-      { courseId, studentId: Number(selectedStudentId) },
+      { classId, studentId: Number(selectedStudentId) },
       {
         onSuccess: () => {
-          toast({
-            title: "تم التسجيل",
-            description: "تم تسجيل الطالب في الدورة",
-          });
+          toast({ title: "تم التسجيل", description: "تم تسجيل الطالب في الشعبة" });
           setSelectedStudentId("");
         },
         onError: (err: any) =>
@@ -1403,13 +1747,10 @@ function CourseManageSheet({
 
   const handleRemoveStudent = (studentId: number) => {
     removeStudent.mutate(
-      { courseId, studentId },
+      { classId, studentId },
       {
         onSuccess: () =>
-          toast({
-            title: "تمت الإزالة",
-            description: "تمت إزالة الطالب من الدورة",
-          }),
+          toast({ title: "تمت الإزالة", description: "تمت إزالة الطالب من الشعبة" }),
         onError: (err: any) =>
           toast({
             title: "خطأ",
@@ -1422,10 +1763,7 @@ function CourseManageSheet({
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent
-        side="left"
-        className="w-full sm:max-w-lg p-0 flex flex-col"
-      >
+      <SheetContent side="left" className="w-full sm:max-w-lg p-0 flex flex-col">
         {/* Header */}
         <SheetHeader className="p-5 pb-4 border-b">
           <SheetTitle className="text-start">
@@ -1439,293 +1777,95 @@ function CourseManageSheet({
                 {isEditing ? "إلغاء التعديل" : "تعديل البيانات"}
               </Button>
               <div className="flex items-center gap-2">
-                <span className={`course-tag course-tag-${colorTag}`}>
-                  {colorTag}
-                </span>
-                <span>{course?.title ?? "..."}</span>
+                <span className={`course-tag course-tag-${colorTag}`}>{colorTag}</span>
+                <div className="text-end">
+                  <span>{courseClass?.course?.title ?? "..."}</span>
+                  <p className="text-xs font-normal text-muted-foreground">
+                    {courseClass?.name}
+                  </p>
+                </div>
               </div>
             </div>
-            {course?.description && !isEditing && (
+            {courseClass?.academic_year && !isEditing && (
               <p className="text-sm font-normal text-muted-foreground mt-1 text-end">
-                {course.description}
+                {courseClass.academic_year.name}
               </p>
             )}
           </SheetTitle>
         </SheetHeader>
 
-        {courseLoading ? (
+        {classLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto">
-            {/* ---- Edit Course form ---- */}
+            {/* ---- Edit class form ---- */}
             {isEditing && (
               <div className="p-5 border-b bg-muted/20 space-y-4">
                 <div className="space-y-2">
-                  <Label>اسم الدورة</Label>
-                  <Input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                  />
+                  <Label>اسم الشعبة</Label>
+                  <Input value={name} onChange={(e) => setName(e.target.value)} />
                 </div>
+
                 <div className="space-y-2">
-                  <Label>اللون</Label>
-                  <Select value={color} onValueChange={setColor}>
+                  <Label>الدورة</Label>
+                  <Select value={courseId} onValueChange={setCourseId}>
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="اختر الدورة" />
                     </SelectTrigger>
                     <SelectContent>
-                      {colorOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`w-3 h-3 rounded-full course-tag-${opt.value}`}
-                              style={{ display: "inline-block" }}
-                            />
-                            {opt.label}
-                          </div>
+                      {allCourses.map((c) => (
+                        <SelectItem key={c.id} value={c.id.toString()}>
+                          {c.title}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>من جيل الى جيل</Label>
-                  <Input
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>التصنيف</Label>
-                  <div className="flex gap-2">
-                    <Select value={categoryId} onValueChange={setCategoryId}>
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="اختر التصنيف" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories?.map((c) => (
-                          <SelectItem key={c.id} value={c.id.toString()}>
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="icon">
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-64 p-3">
-                        <div className="space-y-2">
-                          <h4 className="font-medium text-xs leading-none">إضافة تصنيف جديد</h4>
-                          <Input
-                            placeholder="اسم التصنيف"
-                            value={newCategoryName}
-                            onChange={(e) => setNewCategoryName(e.target.value)}
-                            className="h-8 text-xs"
-                          />
-                          <Button
-                            size="sm"
-                            className="w-full h-8 text-xs"
-                            onClick={() => handleCreateCategory()}
-                            disabled={createCategoryMutation.isPending}
-                          >
-                            {createCategoryMutation.isPending ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              "إضافة"
-                            )}
-                          </Button>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    يمكن نقل الشعبة إلى دورة أخرى
+                  </p>
                 </div>
 
                 <div className="space-y-2">
                   <Label>السنة الدراسية (الفوج)</Label>
-                  <div className="flex gap-2">
-                    <Select value={yearId} onValueChange={setYearId}>
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="اختر السنة" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {years?.map((y) => (
-                          <SelectItem key={y.id} value={y.id.toString()}>
-                            {y.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="icon">
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-64 p-3">
-                        <div className="space-y-2">
-                          <h4 className="font-medium text-xs leading-none">إضافة سنة جديدة</h4>
-                          <div className="grid grid-cols-2 gap-2">
-                            <Input
-                              placeholder="اللقب (مثال: فوج)"
-                              value={newYearTitle}
-                              onChange={(e) => setNewYearTitle(e.target.value)}
-                              className="h-8 text-xs col-span-2"
-                            />
-                            <Input
-                              placeholder="2025"
-                              value={newYearStart}
-                              onChange={(e) => setNewYearStart(e.target.value)}
-                              className="h-8 text-xs"
-                              type="number"
-                              maxLength={4}
-                            />
-                            <Input
-                              placeholder="2026"
-                              value={newYearEnd}
-                              onChange={(e) => setNewYearEnd(e.target.value)}
-                              className="h-8 text-xs"
-                              type="number"
-                              maxLength={4}
-                            />
-                          </div>
-                          <Button
-                            size="sm"
-                            className="w-full h-8 text-xs"
-                            onClick={() => handleCreateYear()}
-                            disabled={createYearMutation.isPending}
-                          >
-                            {createYearMutation.isPending ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              "إضافة"
-                            )}
-                          </Button>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+                  <YearPicker value={yearId} onChange={setYearId} />
                 </div>
 
                 <div className="space-y-2">
                   <Label>السنة (رقم - اختياري)</Label>
-                  <Input
-                    type="number"
-                    value={year}
-                    onChange={(e) => setYear(e.target.value)}
-                  />
+                  <Input type="number" value={year} onChange={(e) => setYear(e.target.value)} />
                 </div>
+
                 <div className="space-y-2">
                   <Label>الأيام والأوقات</Label>
-                  <div className="space-y-2">
-                    {scheduleDetails.map((item, index) => (
-                      <div key={index} className="flex gap-2 items-start">
-                        <Select
-                          value={item.day}
-                          onValueChange={(val) => updateScheduleItem(index, "day", val)}
-                        >
-                          <SelectTrigger className="w-[110px]">
-                            <SelectValue placeholder="اليوم" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map(
-                              (day) => (
-                                <SelectItem key={day} value={day}>
-                                  {new Intl.DateTimeFormat("ar-EG", { weekday: "long" }).format(
-                                    new Date(
-                                      day === "Sunday" ? "2023-01-01" :
-                                        day === "Monday" ? "2023-01-02" :
-                                          day === "Tuesday" ? "2023-01-03" :
-                                            day === "Wednesday" ? "2023-01-04" :
-                                              day === "Thursday" ? "2023-01-05" :
-                                                day === "Friday" ? "2023-01-06" :
-                                                  "2023-01-07"
-                                    )
-                                  )}
-                                </SelectItem>
-                              )
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[10px] text-muted-foreground">من</span>
-                          <Input
-                            type="time"
-                            className="w-[90px] h-8 text-xs"
-                            value={item.from_time}
-                            onChange={(e) => updateScheduleItem(index, "from_time", e.target.value)}
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[10px] text-muted-foreground">إلى</span>
-                          <Input
-                            type="time"
-                            className="w-[90px] h-8 text-xs"
-                            value={item.to_time}
-                            onChange={(e) => updateScheduleItem(index, "to_time", e.target.value)}
-                          />
-                        </div>
-                        <div className="flex-1 flex flex-col gap-1">
-                          <span className="text-[10px] text-muted-foreground">&nbsp;</span>
-                          <Input
-                            placeholder="ملاحظة"
-                            className="h-8 text-xs"
-                            value={item.note}
-                            onChange={(e) => updateScheduleItem(index, "note", e.target.value)}
-                          />
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive mt-[18px]"
-                          onClick={() => removeScheduleItem(index)}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full gap-2 border-dashed"
-                      onClick={addScheduleItem}
-                    >
-                      <Plus className="w-4 h-4" />
-                      إضافة موعد
-                    </Button>
-                  </div>
+                  <ScheduleEditor value={scheduleDetails} onChange={setScheduleDetails} />
                 </div>
+
                 <div className="flex items-start justify-end gap-2 rounded-md border bg-card p-3">
                   <div className="text-end">
-                    <Label htmlFor="edit-course-pinned" className="cursor-pointer">
-                      دورة ثابتة
+                    <Label htmlFor="edit-class-pinned" className="cursor-pointer">
+                      شعبة ثابتة
                     </Label>
                     <p className="text-[11px] text-muted-foreground mt-1">
                       تظهر في صفحة اليوم مهما كانت السنة المختارة
                     </p>
                   </div>
                   <Checkbox
-                    id="edit-course-pinned"
+                    id="edit-class-pinned"
                     className="mt-1"
                     checked={isPinned}
                     onCheckedChange={(checked) => setIsPinned(checked === true)}
                   />
                 </div>
+
                 <div className="flex gap-2">
                   <Button
                     onClick={handleUpdate}
                     className="flex-1"
-                    disabled={updateCourse.isPending || !title.trim()}
+                    disabled={updateClass.isPending || !name.trim()}
                   >
-                    {updateCourse.isPending ? (
+                    {updateClass.isPending ? (
                       <Loader2 className="w-4 h-4 animate-spin ms-2" />
                     ) : null}
                     حفظ التعديلات
@@ -1738,16 +1878,15 @@ function CourseManageSheet({
             <div className="p-5 border-b text-end">
               <div className="flex items-center justify-end gap-2 mb-4">
                 <Badge variant="secondary" className="text-xs">
-                  {course?.teachers?.length ?? 0}
+                  {courseClass?.teachers?.length ?? 0}
                 </Badge>
                 <h3 className="font-semibold text-sm">المعلمون</h3>
                 <Users className="w-4 h-4 text-primary" />
               </div>
 
-              {/* Assigned teachers */}
-              {(course?.teachers ?? []).length > 0 ? (
+              {(courseClass?.teachers ?? []).length > 0 ? (
                 <div className="space-y-2 mb-4">
-                  {course!.teachers!.map((teacher) => (
+                  {courseClass!.teachers!.map((teacher) => (
                     <div
                       key={teacher.id}
                       className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2.5"
@@ -1766,9 +1905,7 @@ function CourseManageSheet({
                           {teacher.user?.name ?? `معلم #${teacher.id}`}
                         </p>
                         {teacher.user?.email && (
-                          <p className="text-xs text-muted-foreground">
-                            {teacher.user.email}
-                          </p>
+                          <p className="text-xs text-muted-foreground">{teacher.user.email}</p>
                         )}
                       </div>
                     </div>
@@ -1776,7 +1913,7 @@ function CourseManageSheet({
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground mb-4">
-                  لا يوجد معلمون معيّنون لهذه الدورة
+                  لا يوجد معلمون معيّنون لهذه الشعبة
                 </p>
               )}
 
@@ -1797,10 +1934,7 @@ function CourseManageSheet({
                       )}
                       تعيين
                     </Button>
-                    <Select
-                      value={selectedTeacherId}
-                      onValueChange={setSelectedTeacherId}
-                    >
+                    <Select value={selectedTeacherId} onValueChange={setSelectedTeacherId}>
                       <SelectTrigger className="flex-1 text-start">
                         <SelectValue placeholder="اختر معلماً..." />
                       </SelectTrigger>
@@ -1820,7 +1954,11 @@ function CourseManageSheet({
                     size="sm"
                     variant="outline"
                     onClick={handleCreateAndAssignTeacher}
-                    disabled={!newTeacherName.trim() || createTeacherMutation.isPending || assignTeacher.isPending}
+                    disabled={
+                      !newTeacherName.trim() ||
+                      createTeacherMutation.isPending ||
+                      assignTeacher.isPending
+                    }
                     className="gap-1.5 flex-shrink-0"
                   >
                     {createTeacherMutation.isPending || assignTeacher.isPending ? (
@@ -1846,25 +1984,24 @@ function CourseManageSheet({
                 <GraduationCap className="w-4 h-4 text-primary" />
                 <h3 className="font-semibold text-sm">الطلاب</h3>
                 <Badge variant="secondary" className="text-xs">
-                  {course?.students?.length ?? 0}
+                  {courseClass?.students?.length ?? 0}
                 </Badge>
-                {course?.category && (
+                {courseClass?.course?.category && (
                   <Badge variant="outline" className="text-xs">
-                    {course.category.name}
+                    {courseClass.course.category.name}
                   </Badge>
                 )}
               </div>
 
-              {course?.category_id && (
+              {categoryId && (
                 <p className="text-xs text-muted-foreground mb-3 text-end">
                   يظهر الطلاب من تصنيف الدورة فقط
                 </p>
               )}
 
-              {/* Assigned students */}
-              {(course?.students ?? []).length > 0 ? (
+              {(courseClass?.students ?? []).length > 0 ? (
                 <div className="space-y-2 mb-4">
-                  {course!.students!.map((student) => (
+                  {courseClass!.students!.map((student) => (
                     <div
                       key={student.id}
                       className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2.5"
@@ -1879,13 +2016,9 @@ function CourseManageSheet({
                         <X className="w-3.5 h-3.5" />
                       </Button>
                       <div className="text-end">
-                        <p className="text-sm font-medium">
-                          {student.full_name}
-                        </p>
+                        <p className="text-sm font-medium">{student.full_name}</p>
                         {student.external_code && (
-                          <p className="text-xs text-muted-foreground">
-                            {student.external_code}
-                          </p>
+                          <p className="text-xs text-muted-foreground">{student.external_code}</p>
                         )}
                       </div>
                     </div>
@@ -1893,7 +2026,7 @@ function CourseManageSheet({
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground mb-4">
-                  لا يوجد طلاب مسجّلون في هذه الدورة
+                  لا يوجد طلاب مسجّلون في هذه الشعبة
                 </p>
               )}
 
@@ -1923,7 +2056,8 @@ function CourseManageSheet({
                         className="flex-1 justify-between text-start font-normal h-9 px-3"
                       >
                         {selectedStudentId
-                          ? availableStudents.find((s) => String(s.id) === selectedStudentId)?.full_name
+                          ? availableStudents.find((s) => String(s.id) === selectedStudentId)
+                            ?.full_name
                           : "اختر طالباً..."}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
@@ -1952,14 +2086,20 @@ function CourseManageSheet({
                                 key={student.id}
                                 value={student.full_name}
                                 onSelect={() => {
-                                  setSelectedStudentId(String(student.id) === selectedStudentId ? "" : String(student.id));
+                                  setSelectedStudentId(
+                                    String(student.id) === selectedStudentId
+                                      ? ""
+                                      : String(student.id)
+                                  );
                                   setStudentComboOpen(false);
                                 }}
                               >
                                 <Check
                                   className={cn(
                                     "mr-2 h-4 w-4",
-                                    selectedStudentId === String(student.id) ? "opacity-100" : "opacity-0"
+                                    selectedStudentId === String(student.id)
+                                      ? "opacity-100"
+                                      : "opacity-0"
                                   )}
                                 />
                                 {student.full_name}
@@ -1972,15 +2112,16 @@ function CourseManageSheet({
                   </Popover>
                 </div>
               </div>
+
               {isAdmin && (
                 <div className="flex flex-wrap justify-end gap-2 mt-8">
                   <Button
                     variant="outline"
                     onClick={openDuplicateDialog}
-                    disabled={duplicateCourse.isPending}
+                    disabled={duplicateClass.isPending}
                     className="gap-2"
                   >
-                    {duplicateCourse.isPending ? (
+                    {duplicateClass.isPending ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <Copy className="w-4 h-4" />
@@ -1991,121 +2132,99 @@ function CourseManageSheet({
                     <Button
                       variant="outline"
                       onClick={() => {
-                        unarchiveCourse.mutate(courseId!, {
-                          onSuccess: () => toast({ title: "تمت الاستعادة", description: "تم استعادة الدورة بنجاح" }),
-                          onError: (err: any) => toast({ title: "خطأ", description: err.response?.data?.message || "تعذّر الاستعادة", variant: "destructive" }),
+                        unarchiveClass.mutate(classId, {
+                          onSuccess: () =>
+                            toast({
+                              title: "تمت الاستعادة",
+                              description: "تم استعادة الشعبة بنجاح",
+                            }),
+                          onError: (err: any) =>
+                            toast({
+                              title: "خطأ",
+                              description: err.response?.data?.message || "تعذّر الاستعادة",
+                              variant: "destructive",
+                            }),
                         });
                       }}
-                      disabled={unarchiveCourse.isPending}
+                      disabled={unarchiveClass.isPending}
                       className="gap-2"
                     >
-                      {unarchiveCourse.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArchiveRestore className="w-4 h-4" />}
-                      استعادة الدورة
+                      {unarchiveClass.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <ArchiveRestore className="w-4 h-4" />
+                      )}
+                      استعادة الشعبة
                     </Button>
                   ) : (
                     <Button
                       variant="outline"
                       onClick={() => {
-                        archiveCourse.mutate(courseId!, {
-                          onSuccess: () => { toast({ title: "تمت الأرشفة", description: "تم أرشفة الدورة بنجاح" }); onClose(); },
-                          onError: (err: any) => toast({ title: "خطأ", description: err.response?.data?.message || "تعذّر الأرشفة", variant: "destructive" }),
+                        archiveClass.mutate(classId, {
+                          onSuccess: () => {
+                            toast({ title: "تمت الأرشفة", description: "تم أرشفة الشعبة بنجاح" });
+                            onClose();
+                          },
+                          onError: (err: any) =>
+                            toast({
+                              title: "خطأ",
+                              description: err.response?.data?.message || "تعذّر الأرشفة",
+                              variant: "destructive",
+                            }),
                         });
                       }}
-                      disabled={archiveCourse.isPending}
+                      disabled={archiveClass.isPending}
                       className="gap-2 text-amber-600 border-amber-300 hover:bg-amber-50"
                     >
-                      {archiveCourse.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
-                      أرشفة الدورة
+                      {archiveClass.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Archive className="w-4 h-4" />
+                      )}
+                      أرشفة الشعبة
                     </Button>
                   )}
                   <Button
                     variant="destructive"
                     onClick={handleDelete}
-                    disabled={deleteCourse.isPending}
+                    disabled={deleteClass.isPending}
                     className="flex align-items-center gap-2"
-                    title="حذف الدورة"
+                    title="حذف الشعبة"
                   >
-                    {deleteCourse.isPending ? (
+                    {deleteClass.isPending ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <><Trash2 className="w-4 h-4" /> حذف الدورة</>
+                      <>
+                        <Trash2 className="w-4 h-4" /> حذف الشعبة
+                      </>
                     )}
                   </Button>
                 </div>
               )}
 
-              {/* Duplicate Course Dialog */}
+              {/* Duplicate class dialog */}
               <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
                 <DialogContent className="sm:max-w-md">
                   <DialogHeader>
-                    <DialogTitle>نسخ الدورة لسنة جديدة</DialogTitle>
+                    <DialogTitle>نسخ الشعبة لسنة جديدة</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4 pt-2">
+                    <p className="text-sm text-muted-foreground text-end">
+                      تبقى الشعبة الجديدة ضمن دورة {courseClass?.course?.title}
+                    </p>
+
                     <div className="space-y-2">
                       <Label>السنة الدراسية الجديدة</Label>
-                      <div className="flex gap-2">
-                        <Select value={duplicateYearId} onValueChange={setDuplicateYearId}>
-                          <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="اختر السنة" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {years?.map((y) => (
-                              <SelectItem key={y.id} value={y.id.toString()}>
-                                {y.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <YearPicker value={duplicateYearId} onChange={setDuplicateYearId} />
+                    </div>
 
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" size="icon">
-                              <Plus className="w-4 h-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-64 p-3">
-                            <div className="space-y-2">
-                              <h4 className="font-medium text-xs leading-none">إضافة سنة جديدة</h4>
-                              <div className="grid grid-cols-2 gap-2">
-                                <Input
-                                  placeholder="اللقب (مثال: فوج)"
-                                  value={newYearTitle}
-                                  onChange={(e) => setNewYearTitle(e.target.value)}
-                                  className="h-8 text-xs col-span-2"
-                                />
-                                <Input
-                                  placeholder="2026"
-                                  value={newYearStart}
-                                  onChange={(e) => setNewYearStart(e.target.value)}
-                                  className="h-8 text-xs"
-                                  type="number"
-                                  maxLength={4}
-                                />
-                                <Input
-                                  placeholder="2027"
-                                  value={newYearEnd}
-                                  onChange={(e) => setNewYearEnd(e.target.value)}
-                                  className="h-8 text-xs"
-                                  type="number"
-                                  maxLength={4}
-                                />
-                              </div>
-                              <Button
-                                size="sm"
-                                className="w-full h-8 text-xs"
-                                onClick={() => handleCreateYear("duplicate")}
-                                disabled={createYearMutation.isPending}
-                              >
-                                {createYearMutation.isPending ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  "إضافة"
-                                )}
-                              </Button>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
+                    <div className="space-y-2">
+                      <Label>اسم الشعبة الجديدة (اختياري)</Label>
+                      <Input
+                        placeholder={courseClass?.name}
+                        value={duplicateName}
+                        onChange={(e) => setDuplicateName(e.target.value)}
+                      />
                     </div>
 
                     <div className="space-y-2">
@@ -2119,11 +2238,11 @@ function CourseManageSheet({
                     </div>
 
                     <div className="flex items-center justify-end gap-2 rounded-md border p-3">
-                      <Label htmlFor="copy-course-students" className="cursor-pointer">
+                      <Label htmlFor="copy-class-students" className="cursor-pointer">
                         نسخ كل الطلاب
                       </Label>
                       <Checkbox
-                        id="copy-course-students"
+                        id="copy-class-students"
                         checked={duplicateCopyStudents}
                         onCheckedChange={(checked) => setDuplicateCopyStudents(checked === true)}
                       />
@@ -2138,11 +2257,11 @@ function CourseManageSheet({
                         إلغاء
                       </Button>
                       <Button
-                        onClick={handleDuplicateCourse}
+                        onClick={handleDuplicateClass}
                         className="flex-1"
-                        disabled={duplicateCourse.isPending || !duplicateYearId}
+                        disabled={duplicateClass.isPending || !duplicateYearId}
                       >
-                        {duplicateCourse.isPending ? (
+                        {duplicateClass.isPending ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
                           "نسخ"
@@ -2153,7 +2272,7 @@ function CourseManageSheet({
                 </DialogContent>
               </Dialog>
 
-              {/* Create Student Dialog */}
+              {/* Create student dialog */}
               <Dialog open={createStudentDialogOpen} onOpenChange={setCreateStudentDialogOpen}>
                 <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
                   <DialogHeader>
@@ -2162,11 +2281,15 @@ function CourseManageSheet({
                   <div className="space-y-4 pt-2">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>اسم الطالب <span className="text-destructive">*</span></Label>
+                        <Label>
+                          اسم الطالب <span className="text-destructive">*</span>
+                        </Label>
                         <Input
                           placeholder="الاسم الكامل"
                           value={newStudentData.full_name}
-                          onChange={(e) => setNewStudentData({ ...newStudentData, full_name: e.target.value })}
+                          onChange={(e) =>
+                            setNewStudentData({ ...newStudentData, full_name: e.target.value })
+                          }
                         />
                       </div>
                       <div className="space-y-2">
@@ -2174,7 +2297,12 @@ function CourseManageSheet({
                         <Input
                           placeholder="رقم الهوية"
                           value={newStudentData.identity_number}
-                          onChange={(e) => setNewStudentData({ ...newStudentData, identity_number: e.target.value })}
+                          onChange={(e) =>
+                            setNewStudentData({
+                              ...newStudentData,
+                              identity_number: e.target.value,
+                            })
+                          }
                         />
                       </div>
                     </div>
@@ -2185,7 +2313,9 @@ function CourseManageSheet({
                         <Input
                           type="date"
                           value={newStudentData.date_of_birth}
-                          onChange={(e) => setNewStudentData({ ...newStudentData, date_of_birth: e.target.value })}
+                          onChange={(e) =>
+                            setNewStudentData({ ...newStudentData, date_of_birth: e.target.value })
+                          }
                         />
                       </div>
                       <div className="space-y-2">
@@ -2193,7 +2323,9 @@ function CourseManageSheet({
                         <Input
                           placeholder="مثال: الخامس أ"
                           value={newStudentData.grade_level}
-                          onChange={(e) => setNewStudentData({ ...newStudentData, grade_level: e.target.value })}
+                          onChange={(e) =>
+                            setNewStudentData({ ...newStudentData, grade_level: e.target.value })
+                          }
                         />
                       </div>
                     </div>
@@ -2204,7 +2336,9 @@ function CourseManageSheet({
                         <Input
                           placeholder="اسم المدرسة"
                           value={newStudentData.school_name}
-                          onChange={(e) => setNewStudentData({ ...newStudentData, school_name: e.target.value })}
+                          onChange={(e) =>
+                            setNewStudentData({ ...newStudentData, school_name: e.target.value })
+                          }
                         />
                       </div>
                       <div className="space-y-2">
@@ -2212,7 +2346,9 @@ function CourseManageSheet({
                         <Input
                           placeholder="المدينة / الشارع"
                           value={newStudentData.address}
-                          onChange={(e) => setNewStudentData({ ...newStudentData, address: e.target.value })}
+                          onChange={(e) =>
+                            setNewStudentData({ ...newStudentData, address: e.target.value })
+                          }
                         />
                       </div>
                     </div>
@@ -2225,7 +2361,9 @@ function CourseManageSheet({
                           <Input
                             placeholder="اسم الأم"
                             value={newStudentData.mother_name}
-                            onChange={(e) => setNewStudentData({ ...newStudentData, mother_name: e.target.value })}
+                            onChange={(e) =>
+                              setNewStudentData({ ...newStudentData, mother_name: e.target.value })
+                            }
                           />
                         </div>
                         <div className="space-y-2">
@@ -2233,7 +2371,9 @@ function CourseManageSheet({
                           <Input
                             placeholder="05XXXXXXXX"
                             value={newStudentData.mother_phone}
-                            onChange={(e) => setNewStudentData({ ...newStudentData, mother_phone: e.target.value })}
+                            onChange={(e) =>
+                              setNewStudentData({ ...newStudentData, mother_phone: e.target.value })
+                            }
                             dir="ltr"
                           />
                         </div>
@@ -2245,7 +2385,9 @@ function CourseManageSheet({
                           <Input
                             placeholder="اسم الأب"
                             value={newStudentData.father_name}
-                            onChange={(e) => setNewStudentData({ ...newStudentData, father_name: e.target.value })}
+                            onChange={(e) =>
+                              setNewStudentData({ ...newStudentData, father_name: e.target.value })
+                            }
                           />
                         </div>
                         <div className="space-y-2">
@@ -2253,7 +2395,9 @@ function CourseManageSheet({
                           <Input
                             placeholder="05XXXXXXXX"
                             value={newStudentData.father_phone}
-                            onChange={(e) => setNewStudentData({ ...newStudentData, father_phone: e.target.value })}
+                            onChange={(e) =>
+                              setNewStudentData({ ...newStudentData, father_phone: e.target.value })
+                            }
                             dir="ltr"
                           />
                         </div>
@@ -2265,7 +2409,9 @@ function CourseManageSheet({
                       <Textarea
                         placeholder="ملاحظات إضافية ..."
                         value={newStudentData.notes}
-                        onChange={(e) => setNewStudentData({ ...newStudentData, notes: e.target.value })}
+                        onChange={(e) =>
+                          setNewStudentData({ ...newStudentData, notes: e.target.value })
+                        }
                       />
                     </div>
 
@@ -2280,7 +2426,9 @@ function CourseManageSheet({
                       <Button
                         onClick={handleCreateStudent}
                         className="flex-1"
-                        disabled={createStudentMutation.isPending || !newStudentData.full_name.trim()}
+                        disabled={
+                          createStudentMutation.isPending || !newStudentData.full_name.trim()
+                        }
                       >
                         {createStudentMutation.isPending ? (
                           <Loader2 className="w-4 h-4 animate-spin" />

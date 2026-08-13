@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import {
   coursesApi,
+  classesApi,
   teachersApi,
   studentsApi,
   usersApi,
@@ -13,9 +14,10 @@ import {
   reportsApi,
   yearsApi,
   categoriesApi,
-  Course,
+  CourseClass,
   CourseStats,
   DailyOverviewItem,
+  ScheduleItem,
   User,
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -118,43 +120,8 @@ export function useCreateCourse() {
       title: string;
       color?: string;
       description?: string;
-      year?: number;
-      year_id?: number;
       category_id?: number | null;
-      schedule_details?: any[];
-      is_pinned?: boolean;
     }) => coursesApi.create(data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["courses"] }),
-  });
-}
-
-export function useDuplicateCourseToYear() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      id,
-      data,
-    }: {
-      id: number;
-      data: {
-        year_id: number;
-        year?: number | null;
-        copy_students?: boolean;
-      };
-    }) => coursesApi.duplicateToYear(id, data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["courses"] }),
-  });
-}
-
-export function useDuplicateCoursesToYear() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (data: {
-      course_ids: number[];
-      year_id: number;
-      year?: number | null;
-      copy_students?: boolean;
-    }) => coursesApi.duplicateManyToYear(data).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["courses"] }),
   });
 }
@@ -171,11 +138,7 @@ export function useUpdateCourse() {
         title?: string;
         color?: string;
         description?: string;
-        year?: number;
-        year_id?: number;
         category_id?: number | null;
-        schedule_details?: any[];
-        is_pinned?: boolean;
       };
     }) => coursesApi.update(id, data).then((r) => r.data),
     onSuccess: (_data, { id }) => {
@@ -209,51 +172,165 @@ export function useUnarchiveCourse() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Classes ("شعبة")
+// ---------------------------------------------------------------------------
+
+/** Invalidate every query that reflects class data */
+function invalidateClasses(qc: ReturnType<typeof useQueryClient>, classId?: number) {
+  if (classId) qc.invalidateQueries({ queryKey: ["classes", classId] });
+  qc.invalidateQueries({ queryKey: ["classes"] });
+  qc.invalidateQueries({ queryKey: ["courses"] });
+  qc.invalidateQueries({ queryKey: ["daily-overview"] });
+}
+
+export function useClasses(
+  opts: { archived?: boolean; yearId?: number | null; courseId?: number | null } = {},
+  enabled = true
+) {
+  const { archived = false, yearId = null, courseId = null } = opts;
+  return useQuery({
+    queryKey: ["classes", { archived, yearId, courseId }],
+    queryFn: () =>
+      classesApi.list({ archived, yearId, courseId }).then((r) => r.data),
+    enabled,
+  });
+}
+
+export function useClass(id: number | null) {
+  return useQuery({
+    queryKey: ["classes", id],
+    queryFn: () => classesApi.show(id!).then((r) => r.data),
+    enabled: !!id,
+  });
+}
+
+export function useCreateClass() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      course_id: number;
+      name: string;
+      year_id?: number | null;
+      year?: number | null;
+      schedule_details?: ScheduleItem[];
+      is_pinned?: boolean;
+    }) => classesApi.create(data).then((r) => r.data),
+    onSuccess: () => invalidateClasses(qc),
+  });
+}
+
+export function useUpdateClass() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: {
+        course_id?: number;
+        name?: string;
+        year_id?: number | null;
+        year?: number | null;
+        schedule_details?: ScheduleItem[];
+        is_pinned?: boolean;
+      };
+    }) => classesApi.update(id, data).then((r) => r.data),
+    onSuccess: (_data, { id }) => invalidateClasses(qc, id),
+  });
+}
+
+export function useDeleteClass() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => classesApi.destroy(id),
+    onSuccess: () => invalidateClasses(qc),
+  });
+}
+
+export function useArchiveClass() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => classesApi.archive(id),
+    onSuccess: () => invalidateClasses(qc),
+  });
+}
+
+export function useUnarchiveClass() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => classesApi.unarchive(id),
+    onSuccess: () => invalidateClasses(qc),
+  });
+}
+
+export function useDuplicateClassToYear() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: {
+        year_id: number;
+        year?: number | null;
+        name?: string | null;
+        copy_students?: boolean;
+      };
+    }) => classesApi.duplicateToYear(id, data).then((r) => r.data),
+    onSuccess: () => invalidateClasses(qc),
+  });
+}
+
+export function useDuplicateClassesToYear() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      class_ids: number[];
+      year_id: number;
+      year?: number | null;
+      name?: string | null;
+      copy_students?: boolean;
+    }) => classesApi.duplicateManyToYear(data).then((r) => r.data),
+    onSuccess: () => invalidateClasses(qc),
+  });
+}
+
 export function useAssignTeacher() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ courseId, teacherId }: { courseId: number; teacherId: number }) =>
-      coursesApi.assignTeacher(courseId, teacherId),
-    onSuccess: (_data, { courseId }) => {
-      qc.invalidateQueries({ queryKey: ["courses", courseId] });
-      qc.invalidateQueries({ queryKey: ["courses"] });
-    },
+    mutationFn: ({ classId, teacherId }: { classId: number; teacherId: number }) =>
+      classesApi.assignTeacher(classId, teacherId),
+    onSuccess: (_data, { classId }) => invalidateClasses(qc, classId),
   });
 }
 
 export function useRemoveTeacher() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ courseId, teacherId }: { courseId: number; teacherId: number }) =>
-      coursesApi.removeTeacher(courseId, teacherId),
-    onSuccess: (_data, { courseId }) => {
-      qc.invalidateQueries({ queryKey: ["courses", courseId] });
-      qc.invalidateQueries({ queryKey: ["courses"] });
-    },
+    mutationFn: ({ classId, teacherId }: { classId: number; teacherId: number }) =>
+      classesApi.removeTeacher(classId, teacherId),
+    onSuccess: (_data, { classId }) => invalidateClasses(qc, classId),
   });
 }
 
 export function useAssignStudent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ courseId, studentId }: { courseId: number; studentId: number }) =>
-      coursesApi.assignStudent(courseId, studentId),
-    onSuccess: (_data, { courseId }) => {
-      qc.invalidateQueries({ queryKey: ["courses", courseId] });
-      qc.invalidateQueries({ queryKey: ["courses"] });
-    },
+    mutationFn: ({ classId, studentId }: { classId: number; studentId: number }) =>
+      classesApi.assignStudent(classId, studentId),
+    onSuccess: (_data, { classId }) => invalidateClasses(qc, classId),
   });
 }
 
 export function useRemoveStudent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ courseId, studentId }: { courseId: number; studentId: number }) =>
-      coursesApi.removeStudent(courseId, studentId),
-    onSuccess: (_data, { courseId }) => {
-      qc.invalidateQueries({ queryKey: ["courses", courseId] });
-      qc.invalidateQueries({ queryKey: ["courses"] });
-    },
+    mutationFn: ({ classId, studentId }: { classId: number; studentId: number }) =>
+      classesApi.removeStudent(classId, studentId),
+    onSuccess: (_data, { classId }) => invalidateClasses(qc, classId),
   });
 }
 
@@ -456,12 +533,12 @@ export function useUnarchiveStudent() {
 // Attendance
 // ---------------------------------------------------------------------------
 
-export function useAttendanceSession(courseId: number | null, date: string) {
+export function useAttendanceSession(classId: number | null, date: string) {
   return useQuery({
-    queryKey: ["attendance", courseId, date],
+    queryKey: ["attendance", classId, date],
     queryFn: () =>
-      attendanceApi.getSession(courseId!, date).then((r) => r.data),
-    enabled: !!courseId && !!date,
+      attendanceApi.getSession(classId!, date).then((r) => r.data),
+    enabled: !!classId && !!date,
   });
 }
 
@@ -469,16 +546,16 @@ export function useSaveAttendance() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
-      courseId,
+      classId,
       date,
       records,
       note,
     }: {
-      courseId: number;
+      classId: number;
       date: string;
       records?: { student_id: number; status: string; note?: string }[];
       note?: string;
-    }) => attendanceApi.updateSession(courseId, date, { records, note }),
+    }) => attendanceApi.updateSession(classId, date, { records, note }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["attendance"] });
       qc.invalidateQueries({ queryKey: ["daily-overview"] });
@@ -502,6 +579,7 @@ export function useDailyOverview(date: string, enabled = true, yearId?: number |
 export function useReportGenerate(
   params: {
     course_id?: number;
+    class_id?: number;
     teacher_id?: number;
     student_id?: number;
     from_date?: string;
@@ -527,33 +605,38 @@ export function useReportGenerate(
 // Admin  → uses daily overview for stats
 // Teacher → fetches attendance per course
 
-export function useTodayStats(courses: Course[], date: string, yearId?: number | null, enabled = true) {
+export function useTodayStats(
+  classes: CourseClass[],
+  date: string,
+  yearId?: number | null,
+  enabled = true
+) {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
-  // Admin path: single request for all courses
+  // Admin path: single request covering every class
   const overviewQuery = useDailyOverview(date, isAdmin && enabled, yearId);
 
-  // Teacher path: one request per course (teachers typically have 2-5 courses)
+  // Teacher path: one request per class (teachers typically have 2-5 classes)
   const attendanceQueries = useQueries({
     queries: !isAdmin && enabled
-      ? courses.map((c) => ({
+      ? classes.map((c) => ({
         queryKey: ["attendance", c.id, date],
         queryFn: () =>
           attendanceApi.getSession(c.id, date).then((r) => r.data),
-        // Poll for teachers too so they see their own updates if made from another device, 
+        // Poll for teachers too so they see their own updates if made from another device,
         // though less critical than admin dashboard
         refetchInterval: 5000,
       }))
       : [],
   });
 
-  // Build a course-id → stats map
+  // Build a class-id → stats map
   const statsMap: Record<number, CourseStats> = {};
 
   if (isAdmin && overviewQuery.data) {
     for (const item of overviewQuery.data as DailyOverviewItem[]) {
-      statsMap[item.course_id] = {
+      statsMap[item.class_id] = {
         total: item.total_students,
         present: item.present_count,
         absent: item.absent_count,
@@ -561,14 +644,14 @@ export function useTodayStats(courses: Course[], date: string, yearId?: number |
       };
     }
   } else if (!isAdmin) {
-    courses.forEach((course, i) => {
+    classes.forEach((courseClass, i) => {
       const data = attendanceQueries[i]?.data;
       if (data) {
         const records = data.records ?? [];
         const present = records.filter((r) => r.status === "present").length;
         const absent = records.filter((r) => r.status === "absent").length;
         const total = records.length;
-        statsMap[course.id] = {
+        statsMap[courseClass.id] = {
           total,
           present,
           absent,

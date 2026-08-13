@@ -72,7 +72,7 @@ class TeacherController extends Controller
             }
         }
 
-        return $teacher->load(['user', 'courses']);
+        return $teacher->load(['user', 'classes.course', 'classes.academicYear']);
     }
 
     /**
@@ -114,7 +114,7 @@ class TeacherController extends Controller
         if (!$request->user()->isAdmin()) return response()->json(['message' => 'Unauthorized'], 403);
 
         return DB::transaction(function () use ($teacher) {
-            $teacher->courses()->detach();
+            $teacher->classes()->detach();
             $user = $teacher->user;
             $teacher->delete();
             if ($user) {

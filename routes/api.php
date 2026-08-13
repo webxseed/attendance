@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CourseController;
+use App\Http\Controllers\Api\CourseClassController;
 use App\Http\Controllers\Api\TeacherController;
 use App\Http\Controllers\Api\StudentController;
 use App\Http\Controllers\Api\AttendanceController;
@@ -25,19 +26,24 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
 
     // Courses
-    Route::post('/courses/duplicate-to-year', [CourseController::class, 'duplicateManyToYear']);
     Route::apiResource('courses', CourseController::class);
     Route::post('/courses/{course}/archive', [CourseController::class, 'archive']);
     Route::post('/courses/{course}/unarchive', [CourseController::class, 'unarchive']);
-    Route::post('/courses/{course}/duplicate-to-year', [CourseController::class, 'duplicateToYear']);
     Route::apiResource('years', \App\Http\Controllers\Api\YearController::class);
     Route::apiResource('categories', \App\Http\Controllers\Api\CategoryController::class)->except(['show']);
 
-    // Course assignments (Admin)
-    Route::post('/courses/{course}/teachers', [CourseController::class, 'assignTeacher']);
-    Route::delete('/courses/{course}/teachers', [CourseController::class, 'removeTeacher']);
-    Route::post('/courses/{course}/students', [CourseController::class, 'assignStudent']);
-    Route::delete('/courses/{course}/students', [CourseController::class, 'removeStudent']);
+    // Classes ("شعبة") – a course's run in a given year, holding the roster
+    Route::post('/classes/duplicate-to-year', [CourseClassController::class, 'duplicateManyToYear']);
+    Route::apiResource('classes', CourseClassController::class)->parameters(['classes' => 'class']);
+    Route::post('/classes/{class}/archive', [CourseClassController::class, 'archive']);
+    Route::post('/classes/{class}/unarchive', [CourseClassController::class, 'unarchive']);
+    Route::post('/classes/{class}/duplicate-to-year', [CourseClassController::class, 'duplicateToYear']);
+
+    // Class assignments (Admin)
+    Route::post('/classes/{class}/teachers', [CourseClassController::class, 'assignTeacher']);
+    Route::delete('/classes/{class}/teachers', [CourseClassController::class, 'removeTeacher']);
+    Route::post('/classes/{class}/students', [CourseClassController::class, 'assignStudent']);
+    Route::delete('/classes/{class}/students', [CourseClassController::class, 'removeStudent']);
 
     // Teachers (Admin)
     Route::apiResource('teachers', TeacherController::class);
@@ -50,10 +56,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Users (Admin)
     Route::apiResource('users', \App\Http\Controllers\Api\UserController::class);
 
-    // Attendance (Teacher/Admin)
+    // Attendance (Teacher/Admin) – per class
     // Using simple parameters instead of resource for custom flow
-    Route::get('/attendance/{course}/{date}', [AttendanceController::class, 'show']);
-    Route::post('/attendance/{course}/{date}', [AttendanceController::class, 'update']);
+    Route::get('/attendance/{class}/{date}', [AttendanceController::class, 'show']);
+    Route::post('/attendance/{class}/{date}', [AttendanceController::class, 'update']);
 
     // Reports (Admin)
     Route::get('/reports/daily/{date}', [ReportController::class, 'dailyOverview']);

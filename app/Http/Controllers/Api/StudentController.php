@@ -68,7 +68,7 @@ class StudentController extends Controller
     {
         if (!$request->user()->isAdmin()) return response()->json(['message' => 'Unauthorized'], 403);
 
-        return $student->load(['courses', 'category']);
+        return $student->load(['classes.course', 'category']);
     }
 
     /**
@@ -130,8 +130,8 @@ class StudentController extends Controller
     {
         if (!$request->user()->isAdmin()) return response()->json(['message' => 'Unauthorized'], 403);
 
-        // Detach from courses
-        $student->courses()->detach();
+        // Detach from classes
+        $student->classes()->detach();
 
         // Delete attendance records
         $student->attendanceRecords()->delete();

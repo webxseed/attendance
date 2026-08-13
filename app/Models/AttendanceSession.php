@@ -9,16 +9,16 @@ class AttendanceSession extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['course_id', 'date', 'created_by_user_id', 'finalized_at', 'note'];
+    protected $fillable = ['course_class_id', 'date', 'created_by_user_id', 'finalized_at', 'note'];
 
     protected $casts = [
         'date' => 'date',
         'finalized_at' => 'datetime',
     ];
 
-    public function course()
+    public function courseClass()
     {
-        return $this->belongsTo(Course::class);
+        return $this->belongsTo(CourseClass::class, 'course_class_id');
     }
 
     public function records()

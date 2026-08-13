@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceRecord;
 use App\Models\AttendanceSession;
-use App\Models\Course;
+use App\Models\CourseClass;
 use Illuminate\Http\Request;
 
 class ReportController extends Controller
@@ -22,9 +22,11 @@ class ReportController extends Controller
 
         $yearId = $request->integer('year_id') ?: null;
 
-        // Get courses with student count
-        $courses = Course::whereNull('archived_at')
+        // Get classes with student count
+        $classes = CourseClass::whereNull('course_classes.archived_at')
+            ->whereHas('course', fn ($q) => $q->whereNull('archived_at'))
             ->when($yearId, fn ($query) => $query->forYear($yearId))
+            ->with('course')
             ->withCount('students')
             ->get();
 
@@ -32,12 +34,12 @@ class ReportController extends Controller
         $sessions = AttendanceSession::whereDate('date', $date)
             ->with(['records'])
             ->get()
-            ->keyBy('course_id');
+            ->keyBy('course_class_id');
 
-        $result = $courses->map(function ($course) use ($sessions) {
-            $session = $sessions->get($course->id);
-            
-            $totalStudents = $course->students_count;
+        $result = $classes->map(function ($class) use ($sessions) {
+            $session = $sessions->get($class->id);
+
+            $totalStudents = $class->students_count;
             $present = 0;
             $absent = 0;
 
@@ -62,8 +64,10 @@ class ReportController extends Controller
             $completion = ($totalStudents > 0) ? ($markedCount / $totalStudents) * 100 : 0;
 
             return [
-                'course_id' => $course->id,
-                'course_title' => $course->title,
+                'class_id' => $class->id,
+                'class_name' => $class->name,
+                'course_id' => $class->course_id,
+                'course_title' => $class->course?->title,
                 'total_students' => $totalStudents,
                 'present_count' => $present,
                 'absent_count' => $absent,
@@ -87,6 +91,7 @@ class ReportController extends Controller
 
         $validated = $request->validate([
             'course_id' => 'nullable|exists:courses,id',
+            'class_id' => 'nullable|exists:course_classes,id',
             'teacher_id' => 'nullable|exists:teachers,id',
             'student_id' => 'nullable|exists:students,id',
             'from_date' => 'nullable|date',
@@ -94,22 +99,24 @@ class ReportController extends Controller
         ]);
 
         $query = AttendanceRecord::query()
-            ->with(['session.course', 'student', 'markedBy']);
+            ->with(['session.courseClass.course', 'student', 'markedBy']);
 
         // Apply filters
         if ($request->course_id) {
-            $query->whereHas('session', function ($q) use ($request) {
+            $query->whereHas('session.courseClass', function ($q) use ($request) {
                 $q->where('course_id', $request->course_id);
             });
         }
 
+        if ($request->class_id) {
+            $query->whereHas('session', function ($q) use ($request) {
+                $q->where('course_class_id', $request->class_id);
+            });
+        }
+
         if ($request->teacher_id) {
-            // Filter records where the session belongs to a course the teacher teaches?
-            // Or where the session was created by the teacher? 
-            // Prompt says: "filters: course_id, teacher_id...". implies filtering BY TEACHER (who taught/marked).
-            // But usually means "Teacher's classes". 
-            // I'll filter by course assignment for that teacher.
-            $query->whereHas('session.course.teachers', function ($q) use ($request) {
+            // Records of the classes that teacher is assigned to.
+            $query->whereHas('session.courseClass.teachers', function ($q) use ($request) {
                 $q->where('teachers.id', $request->teacher_id);
             });
         }

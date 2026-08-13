@@ -8,8 +8,8 @@ class Year extends Model
 {
     protected $fillable = ['name', 'title', 'start_year', 'end_year'];
 
-    public function courses()
+    public function classes()
     {
-        return $this->hasMany(Course::class);
+        return $this->hasMany(CourseClass::class, 'year_id');
     }
 }
